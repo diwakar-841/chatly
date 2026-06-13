@@ -25,8 +25,10 @@ const logger = createLogger({
   transports: [new transports.Console()],
 });
 
-(logger as typeof logger & LoggerWithStream).stream = {
-  write: (message: string) => logger.http(message.trimEnd()),
+(logger as any).stream = {
+  write: (message: string) => {
+    logger.info(message.trimEnd());
+  },
 };
 
 export default logger;

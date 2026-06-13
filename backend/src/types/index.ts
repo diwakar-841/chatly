@@ -61,6 +61,7 @@ export interface IMessage extends Document {
   readBy: Types.ObjectId[];
   replyTo: Types.ObjectId | null;
   isDeleted: boolean;
+  deletedFor: Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -85,6 +86,7 @@ export interface IChat extends Document {
   joinRequests: Types.ObjectId[];
   hiddenBy: Types.ObjectId[];
   pendingInvites: Types.ObjectId[];
+  unreadCounts: Map<string, number>;
   createdAt: Date;
   updatedAt: Date;
 }

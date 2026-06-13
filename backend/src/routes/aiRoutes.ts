@@ -4,6 +4,6 @@ import { protect } from '../middleware/authMiddleware.js';
 
 const router = Router();
 
-router.post('/chat', protect, aiChat);
+router.post('/chat', protect as any, aiChat as any);
 
 export default router;
