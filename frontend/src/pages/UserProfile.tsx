@@ -208,7 +208,7 @@ export default function UserProfilePage() {
           </div>
           <div className="mt-4 flex items-center gap-2">
             <h2 className="text-2xl font-bold">{displayName}</h2>
-            {profile.isVerified && <BadgeCheck className="w-5 h-5 text-accent" title="Verified" />}
+            {profile.isVerified && <BadgeCheck className="w-5 h-5 text-accent" />}
           </div>
           <p className="text-muted text-sm mt-1">@{profile.username}</p>
           {profile.isPrivate && (

@@ -25,7 +25,7 @@ export default function LoginPage() {
 
   const onSubmit = async (data: FormData) => {
     const parsed = schema.safeParse(data);
-    if (!parsed.success) { toast.error(parsed.error.errors[0].message); return; }
+    if (!parsed.success) { toast.error(parsed.error.issues[0].message); return; }
     try {
       const res = await authApi.login(parsed.data);
       setAuth(res);
@@ -106,7 +106,7 @@ export default function LoginPage() {
               <label style={{ fontSize: "12px", fontWeight: 600, color: "#8696a0", letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: "8px" }}>Email</label>
               <div style={{ position: "relative" }}>
                 <span style={iconStyle("email")}><Mail size={16} /></span>
-                <input type="email" placeholder="you@example.com" style={{ ...inputStyle("email"), paddingLeft: "42px" }} onFocus={() => setFocused("email")} onBlur={() => setFocused(null)} {...register("email")} />
+                <input type="email" placeholder="you@example.com" style={{ ...inputStyle("email"), paddingLeft: "42px" }} onFocus={() => setFocused("email")} {...register("email")} />
               </div>
               {errors.email && <p style={{ color: "#ef4444", fontSize: "12px", marginTop: "5px" }}>{errors.email.message}</p>}
             </div>
@@ -114,7 +114,7 @@ export default function LoginPage() {
               <label style={{ fontSize: "12px", fontWeight: 600, color: "#8696a0", letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: "8px" }}>Password</label>
               <div style={{ position: "relative" }}>
                 <span style={iconStyle("password")}><Lock size={16} /></span>
-                <input type={show ? "text" : "password"} placeholder="••••••••" style={{ ...inputStyle("password"), paddingLeft: "42px", paddingRight: "46px" }} onFocus={() => setFocused("password")} onBlur={() => setFocused(null)} {...register("password")} />
+                <input type={show ? "text" : "password"} placeholder="••••••••" style={{ ...inputStyle("password"), paddingLeft: "42px", paddingRight: "46px" }} onFocus={() => setFocused("password")} {...register("password")} />
                 <button type="button" onClick={() => setShow(!show)} style={{ position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#8696a0", padding: 0, display: "flex" }}>
                   {show ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
