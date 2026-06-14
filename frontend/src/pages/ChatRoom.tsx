@@ -616,7 +616,7 @@ export default function ChatRoomPage() {
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 md:px-4 py-3">
         {loading ? (
           <div className="flex items-center justify-center h-full">
-            <Spinner className="w-6 h-6" style={{ color: "#25d366" }} />
+            <Spinner className="w-6 h-6" />
           </div>
         ) : (
           <>

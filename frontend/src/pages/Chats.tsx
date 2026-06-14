@@ -227,11 +227,11 @@ export default function ChatsPage() {
       >
         {avatarPath ? (
           <Link to={avatarPath} className="shrink-0 py-3" onClick={(e) => e.stopPropagation()}>
-            <Avatar src={c.isGroup ? c.groupAvatar : other?.avatar} name={title || ""} online={online} size={48} />
+            <Avatar src={c.isGroup ? c.groupAvatar : other?.avatar} name={title || ""} online={online ?? false} size={48} />
           </Link>
         ) : (
           <div className="shrink-0 py-3">
-            <Avatar src={c.isGroup ? c.groupAvatar : other?.avatar} name={title || ""} online={online} size={48} />
+            <Avatar src={c.isGroup ? c.groupAvatar : other?.avatar} name={title || ""} online={online ?? false} size={48} />
           </div>
         )}
         <Link to={`/chats/${c._id}`} className="flex-1 min-w-0 py-3">
