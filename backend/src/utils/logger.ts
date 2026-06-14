@@ -19,7 +19,7 @@ const logger = createLogger({
   transports: [new transports.Console()],
 });
 
-(logger as typeof logger & { stream: { write: (msg: string) => void } }).stream = {
+(logger as any).stream = {
   write: (message: string) => logger.http(message.trimEnd()),
 };
 

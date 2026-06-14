@@ -50,6 +50,11 @@ export interface IRefreshToken extends Document {
   createdAt: Date;
 }
 
+export interface IReaction {
+  user: Types.ObjectId;
+  emoji: string;
+}
+
 export interface IMessage extends Document {
   _id: Types.ObjectId;
   chat: Types.ObjectId;
@@ -60,14 +65,10 @@ export interface IMessage extends Document {
   reactions: IReaction[];
   readBy: Types.ObjectId[];
   replyTo: Types.ObjectId | null;
+  deletedFor?: Types.ObjectId[];
   isDeleted: boolean;
   createdAt: Date;
   updatedAt: Date;
-}
-
-export interface IReaction {
-  user: Types.ObjectId;
-  emoji: string;
 }
 
 export interface IChat extends Document {
@@ -76,15 +77,22 @@ export interface IChat extends Document {
   description: string;
   isGroup: boolean;
   isPublic: boolean;
+
   members: Types.ObjectId[];
   admins: Types.ObjectId[];
+
   groupAvatar: string;
+
   lastMessage?: Types.ObjectId;
   createdBy?: Types.ObjectId;
+
   pinnedMessages: Types.ObjectId[];
   joinRequests: Types.ObjectId[];
   hiddenBy: Types.ObjectId[];
   pendingInvites: Types.ObjectId[];
+
+  unreadCounts?: Map<string, number>;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -93,7 +101,14 @@ export interface INotification extends Document {
   _id: Types.ObjectId;
   recipient: Types.ObjectId;
   sender?: Types.ObjectId;
-  type: 'message' | 'request' | 'request_accepted' | 'group_add' | 'group_join_request' | 'group_invite' | 'system';
+  type:
+    | 'message'
+    | 'request'
+    | 'request_accepted'
+    | 'group_add'
+    | 'group_join_request'
+    | 'group_invite'
+    | 'system';
   message: string;
   isRead: boolean;
   link: string;
@@ -182,12 +197,12 @@ export interface Chat {
   description?: string;
   isPublic?: boolean;
   groupAvatar?: string;
-  members: User[];
+  members: IUser[];
   admins?: string[];
   creator?: string;
-  lastMessage?: Pick<Message, "_id" | "content" | "type" | "createdAt"> | null;
+  lastMessage?: Pick<IMessage, '_id' | 'content' | 'type' | 'createdAt'> | null;
   pinnedMessages?: string[];
-  joinRequests?: User[];
+  joinRequests?: IUser[];
   unreadCount?: number;
   updatedAt: string;
   createdAt: string;
