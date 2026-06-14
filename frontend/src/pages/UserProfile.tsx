@@ -149,6 +149,23 @@ export default function UserProfilePage() {
     }
   };
 
+  /** Removes an accepted friendship (private accounts only). */
+  const handleUnfriend = async () => {
+    if (!confirm("Remove this person from your friends?")) return;
+    setActionLoading(true);
+    try {
+      await requestApi.unfriend(userId);
+      setStatus("none");
+      setRequestId(undefined);
+      setProfile((p) => (p ? { ...p, canChat: false } : p));
+      toast.success("Removed from friends");
+    } catch (e) {
+      toast.error(apiError(e, "Failed to unfriend"));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -191,6 +208,9 @@ export default function UserProfilePage() {
   const displayName = profile.fullName || profile.username;
   const canView = profile.canView !== false;
   const canChat = (profile.canChat === true || status === "accepted") && !blockedByMe;
+  // Public accounts have no friendship concept: anyone can DM directly, so we
+  // never surface friend-request / unfriend actions for them — only Block.
+  const isPrivate = profile.isPrivate !== false;
 
   return (
     <div className="flex flex-col h-full">
@@ -208,7 +228,7 @@ export default function UserProfilePage() {
           </div>
           <div className="mt-4 flex items-center gap-2">
             <h2 className="text-2xl font-bold">{displayName}</h2>
-            {profile.isVerified && <BadgeCheck className="w-5 h-5 text-accent" />}
+            {profile.isVerified && <BadgeCheck className="w-5 h-5 text-accent" title="Verified" />}
           </div>
           <p className="text-muted text-sm mt-1">@{profile.username}</p>
           {profile.isPrivate && (
@@ -267,7 +287,7 @@ export default function UserProfilePage() {
             </button>
           )}
 
-          {status === "none" && !blockedByMe && (
+          {status === "none" && !blockedByMe && isPrivate && (
             <button
               onClick={sendRequest}
               disabled={actionLoading}
@@ -278,7 +298,7 @@ export default function UserProfilePage() {
             </button>
           )}
 
-          {status === "pending_sent" && !blockedByMe && (
+          {status === "pending_sent" && !blockedByMe && isPrivate && (
             <button
               onClick={withdrawRequest}
               disabled={actionLoading}
@@ -289,7 +309,7 @@ export default function UserProfilePage() {
             </button>
           )}
 
-          {status === "pending_received" && !blockedByMe && (
+          {status === "pending_received" && !blockedByMe && isPrivate && (
             <button
               onClick={acceptRequest}
               disabled={actionLoading}
@@ -300,11 +320,15 @@ export default function UserProfilePage() {
             </button>
           )}
 
-          {status === "accepted" && !canChat && !blockedByMe && (
-            <div className="flex items-center justify-center gap-2 py-2 text-sm text-muted">
-              <UserCheck className="w-4 h-4 text-accent" />
-              Friends
-            </div>
+          {status === "accepted" && !blockedByMe && isPrivate && (
+            <button
+              onClick={handleUnfriend}
+              disabled={actionLoading}
+              className="btn-ghost w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-border text-muted"
+            >
+              {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserX className="w-4 h-4" />}
+              Unfriend
+            </button>
           )}
 
           {!blockedByMe && (

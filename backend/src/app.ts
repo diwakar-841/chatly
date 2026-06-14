@@ -22,12 +22,6 @@ import { generalLimiter } from './middleware/rateLimitMiddleware.js';
 import swaggerSpec from './config/swagger.js';
 import logger from './utils/logger.js';
 
-interface LoggerWithStream {
-  stream: {
-    write: (msg: string) => void;
-  };
-}
-
 const app = express();
 
 /** Parses CLIENT_URL (comma-separated) into an array of allowed CORS origins. */
@@ -51,7 +45,7 @@ app.use(
 
 app.use(
   morgan('combined', {
-    stream: (logger as typeof logger & LoggerWithStream).stream,
+    stream: (logger as typeof logger & { stream: { write: (msg: string) => void } }).stream,
   })
 );
 

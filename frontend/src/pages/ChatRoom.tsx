@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, Send, Paperclip, Trash2, Reply, X, MoreVertical,
   Users, Pin, ChevronUp, EyeOff, UserMinus, Check, CheckCheck,
+  Phone, Video,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { chatApi, messageApi, blockApi, requestApi, profileApi } from "@/api/endpoints";
@@ -11,6 +12,7 @@ import { Avatar } from "@/components/Avatar";
 import { Spinner } from "@/components/Spinner";
 import { useAuth } from "@/store/auth";
 import { useSocket } from "@/context/SocketContext";
+import { useCall } from "@/context/CallContext";
 import { formatTime, cn } from "@/lib/utils";
 import { apiError } from "@/api/client";
 import { format, isToday, isYesterday } from "date-fns";
@@ -41,6 +43,7 @@ export default function ChatRoomPage() {
   const navigate = useNavigate();
   const me = useAuth((s) => s.user);
   const { socket, onlineUsers, removeOnlineUser } = useSocket();
+  const { startCall, status: callStatus } = useCall();
 
   const [chat, setChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -433,6 +436,21 @@ export default function ChatRoomPage() {
   const isMine = (m: Message) =>
     (typeof m.sender === "string" ? m.sender : m.sender._id) === me?._id;
 
+  /** Starts a voice or video call with the other DM participant. */
+  const placeCall = (type: "audio" | "video") => {
+    if (!other) return;
+    if (isBlocked) {
+      toast.error("You can't call a blocked user");
+      return;
+    }
+    if (callStatus !== "idle") return;
+    startCall(
+      { _id: other._id, username: other.username, fullName: other.fullName, avatar: other.avatar },
+      chatId,
+      type
+    );
+  };
+
   /** Groups messages by calendar date for separator rendering. */
   const grouped = useMemo(() => {
     const result: { date: string; messages: Message[] }[] = [];
@@ -500,6 +518,31 @@ export default function ChatRoomPage() {
               <Pin className="w-3 h-3" />
               <span>{pinnedCount}</span>
             </div>
+          )}
+
+          {!chat?.isGroup && !isBlocked && (
+            <>
+              <button
+                onClick={() => placeCall("audio")}
+                disabled={callStatus !== "idle"}
+                aria-label="Start voice call"
+                title="Voice call"
+                className="p-2 rounded-full hover:bg-white/10 transition disabled:opacity-40"
+                style={{ color: "#aebac1" }}
+              >
+                <Phone className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => placeCall("video")}
+                disabled={callStatus !== "idle"}
+                aria-label="Start video call"
+                title="Video call"
+                className="p-2 rounded-full hover:bg-white/10 transition disabled:opacity-40"
+                style={{ color: "#aebac1" }}
+              >
+                <Video className="w-5 h-5" />
+              </button>
+            </>
           )}
 
           {chat?.isGroup && (
@@ -573,9 +616,7 @@ export default function ChatRoomPage() {
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 md:px-4 py-3">
         {loading ? (
           <div className="flex items-center justify-center h-full">
-            <div style={{ color: "#25d366" }}>
-  <Spinner className="w-6 h-6" />
-</div>
+            <Spinner className="w-6 h-6" style={{ color: "#25d366" }} />
           </div>
         ) : (
           <>

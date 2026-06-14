@@ -61,7 +61,6 @@ export interface IMessage extends Document {
   readBy: Types.ObjectId[];
   replyTo: Types.ObjectId | null;
   isDeleted: boolean;
-  deletedFor: Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -86,7 +85,6 @@ export interface IChat extends Document {
   joinRequests: Types.ObjectId[];
   hiddenBy: Types.ObjectId[];
   pendingInvites: Types.ObjectId[];
-  unreadCounts: Map<string, number>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -175,42 +173,6 @@ export interface PaginatedResult<T> {
   total: number;
   page: number;
   hasMore: boolean;
-}
-
-export interface User {
-  _id: string;
-  username: string;
-  email: string;
-  fullName?: string;
-  avatar?: string;
-  bio?: string;
-  isPrivate?: boolean;
-  isOnline?: boolean;
-  isVerified?: boolean;
-  lastSeen?: string;
-  createdAt?: string;
-  friendStatus?: string;
-}
-
-export interface Message {
-  _id: string;
-  chat: string;
-  sender: User | string;
-  content?: string;
-  type: "text" | "image" | "file";
-  mediaUrl?: string;
-  replyTo?: Message | string | null;
-  reactions?: Reaction[];
-  readBy?: string[];
-  deleted?: boolean;
-  isPinned?: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Reaction {
-  user: string;
-  emoji: string;
 }
 
 export interface Chat {

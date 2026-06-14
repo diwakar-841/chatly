@@ -54,22 +54,12 @@ export const getOrCreateDM = async (userId1: Types.ObjectId, userId2: string): P
 
   if (!chat) {
     chat = await Chat.create({ members: [userId1, userId2], isGroup: false });
-    const populatedChat = await Chat.findById(chat._id).populate(
-  'members',
-  'username fullName avatar isOnline lastSeen isPrivate'
-);
-
-if (!populatedChat) {
-  throw new AppError('Chat not found', 404);
-}
-
-chat = populatedChat as any;
+    chat = (await Chat.findById(chat._id).populate(
+      'members', 'username fullName avatar isOnline lastSeen isPrivate'
+    )) as IChat;
   }
-  if (!chat) {
-  throw new AppError('Chat not found', 404);
-}
 
-return chat;
+  return chat;
 };
 
 /** Returns a single chat by ID, un-hiding it if previously hidden, with unread count. */
@@ -86,7 +76,7 @@ export const getChatById = async (chatId: string, userId: Types.ObjectId): Promi
     await Chat.findByIdAndUpdate(chatId, { $pull: { hiddenBy: userId } });
   }
 
-  const obj = chat.toObject() as unknown as IChat & { unreadCount: number };
+  const obj = chat.toObject() as IChat & { unreadCount: number };
   obj.unreadCount = (chat.unreadCounts as Map<string, number>)?.get(userId.toString()) || 0;
   return obj;
 };
@@ -103,7 +93,7 @@ export const getUserChats = async (userId: Types.ObjectId, page = 1): Promise<IC
     .limit(CHATS_PAGE_LIMIT);
 
   return chats.map((chat) => {
-    const obj = chat.toObject() as unknown as IChat & { unreadCount: number };
+    const obj = chat.toObject() as IChat & { unreadCount: number };
     obj.unreadCount = (chat.unreadCounts as Map<string, number>)?.get(userId.toString()) || 0;
     return obj;
   });
@@ -388,7 +378,7 @@ export const searchGroups = async (
   ]);
 
   const data = groups.map((g) => {
-    const obj = g.toObject() as unknown as Record<string, unknown>;
+    const obj = g.toObject() as Record<string, unknown>;
     const memberList = g.members as Types.ObjectId[];
     const joinRequestList = (g.joinRequests || []) as Types.ObjectId[];
     const pendingInviteList = (g.pendingInvites || []) as Types.ObjectId[];

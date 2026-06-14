@@ -1,11 +1,5 @@
 import { createLogger, format, transports } from 'winston';
 
-interface LoggerWithStream {
-  stream: {
-    write: (msg: string) => void;
-  };
-}
-
 /**
  * Application-wide Winston logger. Uses 'warn' level in production to reduce
  * noise; 'info' everywhere else. Also exposes a `stream.write` method so
@@ -25,10 +19,8 @@ const logger = createLogger({
   transports: [new transports.Console()],
 });
 
-(logger as any).stream = {
-  write: (message: string) => {
-    logger.info(message.trimEnd());
-  },
+(logger as typeof logger & { stream: { write: (msg: string) => void } }).stream = {
+  write: (message: string) => logger.http(message.trimEnd()),
 };
 
 export default logger;

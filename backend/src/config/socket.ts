@@ -6,6 +6,7 @@ import Chat from '../models/Chat.js';
 import BlockedUser from '../models/BlockedUser.js';
 import Request from '../models/Request.js';
 import chatSocket from '../sockets/chatSocket.js';
+import callSocket from '../sockets/callSocket.js';
 import notificationSocket from '../sockets/notificationSocket.js';
 import userSocket from '../sockets/userSocket.js';
 import logger from '../utils/logger.js';
@@ -132,6 +133,7 @@ export const initSocket = (server: HttpServer): Server => {
     }
 
     chatSocket(io, s);
+    callSocket(io, s);
     notificationSocket(io, s);
     userSocket(io, s);
 

@@ -110,20 +110,53 @@ export const withdrawRequest = async (requestId: string, senderId: Types.ObjectI
   await request.deleteOne();
 };
 
-/** Returns the friendship status and request direction between two users. */
+/**
+ * Returns the relationship status between two users, mapped to the values the
+ * client expects. Enforces the priority rules: Block > Friendship > Public.
+ *
+ * Possible `status` values:
+ *  - `'blocked'`          — an active block exists in either direction (highest priority)
+ *  - `'accepted'`         — the two users are friends
+ *  - `'pending_sent'`     — the caller sent a request that is still pending
+ *  - `'pending_received'` — the caller received a request that is still pending
+ *  - `'none'`             — no relationship (rejected/withdrawn requests collapse to this)
+ */
 export const getRequestStatus = async (
   userId: Types.ObjectId,
   targetUserId: string
-): Promise<{ status: string | null; requestId: string | null; direction: string | null }> => {
+): Promise<{ status: string; requestId: string | null; direction: string | null }> => {
+  // Block takes precedence over every other relationship state.
+  const blocked = await BlockedUser.findOne({
+    $or: [
+      { blocker: userId, blocked: targetUserId },
+      { blocker: targetUserId, blocked: userId },
+    ],
+  });
+  if (blocked) return { status: 'blocked', requestId: null, direction: null };
+
   const request = await Request.findOne({
     $or: [
       { sender: userId, recipient: targetUserId },
       { sender: targetUserId, recipient: userId },
     ],
   });
-  if (!request) return { status: null, requestId: null, direction: null };
+  if (!request) return { status: 'none', requestId: null, direction: null };
+
   const direction = request.sender.toString() === userId.toString() ? 'sent' : 'received';
-  return { status: request.status, requestId: request._id.toString(), direction };
+
+  if (request.status === 'accepted') {
+    return { status: 'accepted', requestId: request._id.toString(), direction };
+  }
+  if (request.status === 'pending') {
+    return {
+      status: direction === 'sent' ? 'pending_sent' : 'pending_received',
+      requestId: request._id.toString(),
+      direction,
+    };
+  }
+
+  // Rejected / withdrawn requests behave like no relationship.
+  return { status: 'none', requestId: null, direction: null };
 };
 
 /** Returns all pending incoming friend requests for the given user. */
