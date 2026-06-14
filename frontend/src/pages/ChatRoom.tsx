@@ -157,6 +157,22 @@ export default function ChatRoomPage() {
       if (isBlocked) return;
       setTypingUser(d.isTyping ? d.username : null);
     };
+    const onRead = ({ chatId: cId, readBy }: { chatId: string; readBy: string }) => {
+      if (cId !== chatId) return;
+      const id = String(readBy);
+      setMessages((p) => p.map((m) => {
+        const arr = (m.readBy ?? []).map(String);
+        return arr.includes(id) ? m : { ...m, readBy: [...arr, id] };
+      }));
+    };
+    const onDelivered = ({ chatId: cId, userId }: { chatId: string; userId: string }) => {
+      if (cId !== chatId) return;
+      const id = String(userId);
+      setMessages((p) => p.map((m) => {
+        const arr = (m.deliveredTo ?? []).map(String);
+        return arr.includes(id) ? m : { ...m, deliveredTo: [...arr, id] };
+      }));
+    };
     const onPinned = (updatedChat: Chat) => {
       if (updatedChat._id === chatId) setChat(updatedChat);
     };
@@ -197,6 +213,8 @@ export default function ChatRoomPage() {
     socket.on("chat:pinned", onPinned);
     socket.on("chat:cleared", onCleared);
     socket.on("chat:status_changed", onStatusChanged);
+    socket.on("message:read", onRead);
+    socket.on("message:delivered", onDelivered);
 
     return () => {
       socket.emit("chat:leave", chatId);
@@ -207,6 +225,8 @@ export default function ChatRoomPage() {
       socket.off("chat:pinned", onPinned);
       socket.off("chat:cleared", onCleared);
       socket.off("chat:status_changed", onStatusChanged);
+      socket.off("message:read", onRead);
+      socket.off("message:delivered", onDelivered);
     };
   }, [socket, chatId, isBlocked, me?._id, removeOnlineUser]);
 
@@ -435,6 +455,18 @@ export default function ChatRoomPage() {
   /** Returns true when the message was sent by the current user. */
   const isMine = (m: Message) =>
     (typeof m.sender === "string" ? m.sender : m.sender._id) === me?._id;
+
+    const computeStatus = (m: Message): "sent" | "delivered" | "read" => {
+    const others = (chat?.members ?? [])
+      .map((mem) => (typeof mem === "string" ? mem : mem._id))
+      .filter((id) => id !== me?._id);
+    if (others.length === 0) return "sent";
+    const readBy = (m.readBy ?? []).map(String);
+    const deliveredTo = (m.deliveredTo ?? []).map(String);
+    if (others.every((id) => readBy.includes(id))) return "read";
+    if (others.some((id) => readBy.includes(id) || deliveredTo.includes(id))) return "delivered";
+    return "sent";
+  };
 
   /** Starts a voice or video call with the other DM participant. */
   const placeCall = (type: "audio" | "video") => {
@@ -725,7 +757,7 @@ export default function ChatRoomPage() {
                             <span className="text-[10px] leading-none" style={{ color: "rgba(134,150,160,0.9)" }}>
                               {formatTime(m.createdAt)}
                             </span>
-                            <StatusTick status={(m as unknown as { status?: string }).status} mine={mine} />
+                            <StatusTick status={computeStatus(m)} mine={mine} />
                           </div>
                           <div style={{ clear: "both" }} />
 

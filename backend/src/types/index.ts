@@ -64,6 +64,7 @@ export interface IMessage extends Document {
   mediaUrl: string;
   reactions: IReaction[];
   readBy: Types.ObjectId[];
+  deliveredTo: Types.ObjectId[];
   replyTo: Types.ObjectId | null;
   deletedFor?: Types.ObjectId[];
   isDeleted: boolean;

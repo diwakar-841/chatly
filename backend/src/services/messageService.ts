@@ -56,6 +56,7 @@ export const sendMessage = async ({
     content: sanitizedContent, type: type ?? 'text',
     mediaUrl: mediaUrl ?? '', replyTo: replyTo ?? null,
     readBy: [senderId],
+    deliveredTo: [senderId],
   });
 
   await Chat.findByIdAndUpdate(chatId, {
@@ -153,6 +154,34 @@ export const reactToMessage = async (
   }
 
   return message;
+};
+
+/**
+ * Marks every message in the chat (not authored by the user) as delivered to
+ * that user — the grey double-tick state. Notifies the original senders so
+ * their ticks advance from single (sent) to double (delivered).
+ */
+
+export const markDelivered = async (chatId: string, userId: Types.ObjectId): Promise<void> => {
+  const chat = await Chat.findOne({ _id: chatId, members: userId });
+  if (!chat) return;
+
+  const result = await Message.updateMany(
+    { chat: chatId, sender: { $ne: userId }, deliveredTo: { $ne: userId } },
+    { $addToSet: { deliveredTo: userId } }
+  );
+  if (!result.modifiedCount) return;
+
+  try {
+    const io = getIO();
+    chat.members.forEach((memberId) => {
+      if (memberId.toString() !== userId.toString()) {
+        io.to(memberId.toString()).emit('message:delivered', { chatId, userId: userId.toString() });
+      }
+    });
+  } catch (socketErr) {
+    logger.warn(`[markDelivered] Socket error for chat ${chatId}: ${(socketErr as Error).message}`);
+  }
 };
 
 /**

@@ -18,6 +18,7 @@ const messageSchema = new Schema<IMessage>(
     mediaUrl: { type: String, default: '' },
     reactions: [reactionSchema],
     readBy: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+    deliveredTo: [{ type: Schema.Types.ObjectId, ref: 'User' }],
     replyTo: { type: Schema.Types.ObjectId, ref: 'Message', default: null },
     isDeleted: { type: Boolean, default: false },
     /** Users listed here have performed "delete for me" — the message is hidden only for them. */

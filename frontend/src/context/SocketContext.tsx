@@ -1,5 +1,10 @@
 import {
-  createContext, useContext, useEffect, useState, useCallback, type ReactNode,
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  type ReactNode,
 } from "react";
 import type { Socket } from "socket.io-client";
 import { connectSocket, disconnectSocket } from "@/lib/socket";
@@ -14,6 +19,7 @@ interface Ctx {
   setUnreadNotifCount: (n: number | ((prev: number) => number)) => void;
   setPendingRequestCount: (n: number | ((prev: number) => number)) => void;
   setGroupInviteCount: (n: number | ((prev: number) => number)) => void;
+
   /** Immediately removes a user from the online set (e.g. after block or unfriend). */
   removeOnlineUser: (userId: string) => void;
 }
@@ -31,22 +37,34 @@ const SocketContext = createContext<Ctx>({
 });
 
 /**
- * Provides a single Socket.IO connection for the entire app. Connects when an
- * access token is present, disconnects on logout. Maintains a live set of
- * online user IDs and global badge counters for notifications, requests, and
- * group invites.
+ * Provides a single Socket.IO connection for the entire app.
+ * Connects when an access token is present, disconnects on logout.
+ * Maintains a live set of online user IDs and global badge counters
+ * for notifications, requests, and group invites.
  */
 export function SocketProvider({ children }: { children: ReactNode }) {
   const token = useAuth((s) => s.accessToken);
+
   const [socket, setSocket] = useState<Socket | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [pendingRequestCount, setPendingRequestCount] = useState(0);
   const [groupInviteCount, setGroupInviteCount] = useState(0);
 
-  const setUnread = useCallback((n: number | ((prev: number) => number)) => setUnreadNotifCount(n), []);
-  const setPending = useCallback((n: number | ((prev: number) => number)) => setPendingRequestCount(n), []);
-  const setInvites = useCallback((n: number | ((prev: number) => number)) => setGroupInviteCount(n), []);
+  const setUnread = useCallback(
+    (n: number | ((prev: number) => number)) => setUnreadNotifCount(n),
+    []
+  );
+
+  const setPending = useCallback(
+    (n: number | ((prev: number) => number)) => setPendingRequestCount(n),
+    []
+  );
+
+  const setInvites = useCallback(
+    (n: number | ((prev: number) => number)) => setGroupInviteCount(n),
+    []
+  );
 
   const removeOnlineUser = useCallback((userId: string) => {
     setOnlineUsers((prev) => {
@@ -71,32 +89,65 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       setOnlineUsers(new Set(userIds));
     };
 
-    const onOnline = ({ userId }: { userId: string }) =>
+    const onOnline = ({ userId }: { userId: string }) => {
       setOnlineUsers((prev) => new Set(prev).add(userId));
+    };
 
-    const onOffline = ({ userId }: { userId: string }) =>
+    const onOffline = ({ userId }: { userId: string }) => {
       setOnlineUsers((prev) => {
         const next = new Set(prev);
         next.delete(userId);
         return next;
       });
-
-    /** Clears the online set on reconnect; the server will re-send `user:online_contacts`. */
-    const onReconnect = () => setOnlineUsers(new Set());
-
-    const onNotification = (notif: { type?: string }) => {
-      if (notif?.type !== "message") setUnreadNotifCount((c) => c + 1);
-      if (notif?.type === "group_invite") setGroupInviteCount((c) => c + 1);
     };
 
-    const onRequest = () => setPendingRequestCount((c) => c + 1);
+    /**
+     * Clears the online set on reconnect;
+     * the server will re-send `user:online_contacts`.
+     */
+    const onReconnect = () => {
+      setOnlineUsers(new Set());
+    };
+
+    const onNotification = (notif: { type?: string }) => {
+      if (notif?.type !== "message") {
+        setUnreadNotifCount((c) => c + 1);
+      }
+
+      if (notif?.type === "group_invite") {
+        setGroupInviteCount((c) => c + 1);
+      }
+    };
+
+    const onRequest = () => {
+      setPendingRequestCount((c) => c + 1);
+    };
 
     /**
-     * Handles block/unblock/unfriend presence changes. For "blocked" and
-     * "unfriended" the actor is removed from onlineUsers immediately so the
-     * green dot disappears across all pages without a re-fetch.
+     * Automatically mark messages as delivered when received.
      */
-    const onStatusChanged = ({ status, by }: { chatId: string; status: string; by: string }) => {
+    const onIncomingMessage = (msg: { chat?: string }) => {
+      if (msg?.chat) {
+        s.emit("message:delivered", {
+          chatId: msg.chat,
+        });
+      }
+    };
+
+    /**
+     * Handles block/unblock/unfriend presence changes.
+     * For "blocked" and "unfriended" the actor is removed
+     * from onlineUsers immediately so the green dot disappears
+     * across all pages without a re-fetch.
+     */
+    const onStatusChanged = ({
+      status,
+      by,
+    }: {
+      chatId: string;
+      status: string;
+      by: string;
+    }) => {
       if (status === "blocked" || status === "unfriended") {
         setOnlineUsers((prev) => {
           const next = new Set(prev);
@@ -112,6 +163,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     s.on("reconnect", onReconnect);
     s.on("notification:new", onNotification);
     s.on("request:new", onRequest);
+    s.on("message:new", onIncomingMessage);
     s.on("chat:status_changed", onStatusChanged);
 
     return () => {
@@ -121,19 +173,25 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       s.off("reconnect", onReconnect);
       s.off("notification:new", onNotification);
       s.off("request:new", onRequest);
+      s.off("message:new", onIncomingMessage);
       s.off("chat:status_changed", onStatusChanged);
     };
   }, [token]);
 
   return (
-    <SocketContext.Provider value={{
-      socket, onlineUsers,
-      unreadNotifCount, pendingRequestCount, groupInviteCount,
-      setUnreadNotifCount: setUnread,
-      setPendingRequestCount: setPending,
-      setGroupInviteCount: setInvites,
-      removeOnlineUser,
-    }}>
+    <SocketContext.Provider
+      value={{
+        socket,
+        onlineUsers,
+        unreadNotifCount,
+        pendingRequestCount,
+        groupInviteCount,
+        setUnreadNotifCount: setUnread,
+        setPendingRequestCount: setPending,
+        setGroupInviteCount: setInvites,
+        removeOnlineUser,
+      }}
+    >
       {children}
     </SocketContext.Provider>
   );

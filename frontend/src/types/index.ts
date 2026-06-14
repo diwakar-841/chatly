@@ -39,6 +39,7 @@ export interface Message {
   replyTo?: Message | string | null;
   reactions?: Reaction[];
   readBy?: string[];
+  deliveredTo?: string[];
   deleted?: boolean;
   isPinned?: boolean;
   createdAt: string;
