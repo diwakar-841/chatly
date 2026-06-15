@@ -9,8 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "all": "^0.0.0",
-    "axios": "^1.6.2",
+    "axios": "^1.7.0",
     "clsx": "^2.1.1",
     "date-fns": "^3.0.6",
     "lucide-react": "^0.312.0",
@@ -20,7 +19,7 @@
     "react-hot-toast": "^2.4.1",
     "react-router-dom": "^6.21.1",
     "socket.io-client": "^4.6.2",
-    "zod": "^4.4.3",
+    "zod": "^3.22.4",
     "zustand": "^4.4.7"
   },
   "devDependencies": {
