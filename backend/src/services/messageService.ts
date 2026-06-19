@@ -7,7 +7,7 @@ import Notification from '../models/Notification.js';
 import { getIO } from '../config/socket.js';
 import logger from '../utils/logger.js';
 import { AppError } from '../utils/errors.js';
-import { IMessage, SendMessageInput } from '../types/index.js';
+import { IMessage, SendMessageInput, EditMessageInput } from '../types/index.js';
 import User from '../models/User.js';
 import Request from '../models/Request.js';
 
@@ -15,17 +15,22 @@ const MAX_MESSAGE_LENGTH = 2000;
 
 /**
  * Sends a message to a chat room. Enforces block and friendship rules for DMs,
- * sanitises content, increments per-member unread counts, and emits socket
- * events + notifications to every other member.
+ * sanitises content (skipped for E2E-encrypted payloads), increments per-member
+ * unread counts, and emits socket events + notifications to every other member.
  */
 export const sendMessage = async ({
   chatId, content, type, replyTo, mediaUrl, senderId, senderUsername,
+  encryptedContent, nonce,
 }: SendMessageInput): Promise<IMessage> => {
-  const sanitizedContent = content
-    ? validator.escape(String(content).trim()).slice(0, MAX_MESSAGE_LENGTH)
+  const isEncrypted = !!(encryptedContent && nonce);
+
+  const sanitizedContent = (!isEncrypted && content)
+    ? String(content).trim().slice(0, MAX_MESSAGE_LENGTH)
     : '';
 
-  if (!sanitizedContent && !mediaUrl) throw new AppError('Message must have content or a file', 400);
+  if (!sanitizedContent && !mediaUrl && !isEncrypted) {
+    throw new AppError('Message must have content or a file', 400);
+  }
 
   const chat = await Chat.findOne({ _id: chatId, members: senderId });
   if (!chat) throw new AppError('Access denied', 403);
@@ -53,10 +58,14 @@ export const sendMessage = async ({
 
   const message = await Message.create({
     chat: chatId, sender: senderId,
-    content: sanitizedContent, type: type ?? 'text',
-    mediaUrl: mediaUrl ?? '', replyTo: replyTo ?? null,
+    content: sanitizedContent,
+    type: type ?? 'text',
+    mediaUrl: mediaUrl ?? '',
+    replyTo: replyTo ?? null,
     readBy: [senderId],
     deliveredTo: [senderId],
+    encryptedContent: isEncrypted ? encryptedContent : '',
+    nonce: isEncrypted ? nonce : '',
   });
 
   await Chat.findByIdAndUpdate(chatId, {
@@ -94,6 +103,56 @@ export const sendMessage = async ({
   return populated;
 };
 
+/**
+ * Edits the content of a text message. Only the sender may edit. Encrypted edits
+ * (E2E DMs) pass encryptedContent + nonce instead of plain content. Sets isEdited
+ * and editedAt, then broadcasts the updated message to all chat members.
+ */
+export const editMessage = async ({
+  messageId, userId, content, encryptedContent, nonce,
+}: EditMessageInput): Promise<IMessage> => {
+  const message = await Message.findOne({ _id: messageId, sender: userId });
+  if (!message) throw new AppError('Message not found or access denied', 404);
+  if (message.isDeleted) throw new AppError('Cannot edit a deleted message', 400);
+  if (message.type !== 'text') throw new AppError('Only text messages can be edited', 400);
+
+  const isEncrypted = !!(encryptedContent && nonce);
+
+  if (isEncrypted) {
+    message.encryptedContent = encryptedContent;
+    message.nonce = nonce;
+    message.content = '';
+  } else {
+    const sanitized = content
+      ? String(content).trim().slice(0, MAX_MESSAGE_LENGTH)
+      : '';
+    if (!sanitized) throw new AppError('Message content cannot be empty', 400);
+    message.content = sanitized;
+    message.encryptedContent = '';
+    message.nonce = '';
+  }
+
+  message.isEdited = true;
+  message.editedAt = new Date();
+  await message.save();
+
+  const populated = (await Message.findById(message._id)
+    .populate('sender', 'username fullName avatar')
+    .populate('replyTo')) as IMessage;
+
+  try {
+    const io = getIO();
+    const chat = await Chat.findById(message.chat);
+    chat?.members.forEach((memberId) => {
+      io.to(memberId.toString()).emit('message:edited', populated);
+    });
+  } catch (socketErr) {
+    logger.warn(`[editMessage] Socket error for message ${messageId}: ${(socketErr as Error).message}`);
+  }
+
+  return populated;
+};
+
 /** Soft-deletes a message by blanking its content and setting isDeleted; broadcasts to all chat members. */
 export const deleteMessage = async (messageId: string, userId: Types.ObjectId): Promise<IMessage> => {
   const message = await Message.findOne({ _id: messageId, sender: userId });
@@ -101,6 +160,8 @@ export const deleteMessage = async (messageId: string, userId: Types.ObjectId): 
   message.isDeleted = true;
   message.content = '';
   message.mediaUrl = '';
+  message.encryptedContent = '';
+  message.nonce = '';
   await message.save();
 
   try {
@@ -224,7 +285,7 @@ export const clearChat = async (chatId: string, userId: Types.ObjectId, forBoth:
   if (forBoth) {
     await Message.updateMany(
       { chat: chatId, sender: userId },
-      { isDeleted: true, content: '', mediaUrl: '' }
+      { isDeleted: true, content: '', mediaUrl: '', encryptedContent: '', nonce: '' }
     );
     try {
       const io = getIO();

@@ -39,6 +39,8 @@ const userSchema = new Schema<IUser>(
     ],
     resetPasswordToken: { type: String, select: false },
     resetPasswordExpire: { type: Date, select: false },
+    /** NaCl Curve25519 public key (base64) for E2E encryption. Registered by the client on login. */
+    publicKey: { type: String, default: '' },
   },
   { timestamps: true }
 );

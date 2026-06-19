@@ -15,8 +15,9 @@ function resolveType(
 /** Sends a text or media message to a chat room. */
 export const sendMessage = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { chatId, content, type: bodyType, replyTo } = req.body as {
+    const { chatId, content, type: bodyType, replyTo, encryptedContent, nonce } = req.body as {
       chatId: string; content?: string; type?: string; replyTo?: string;
+      encryptedContent?: string; nonce?: string;
     };
     const mediaUrl = req.file ? (req.file.path || '') : '';
     const type = resolveType(req.file, bodyType);
@@ -24,8 +25,30 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
       chatId, content, type, replyTo, mediaUrl,
       senderId: (req as AuthRequest).user._id,
       senderUsername: (req as AuthRequest).user.username,
+      encryptedContent,
+      nonce,
     });
     res.status(201).json(message);
+  } catch (err) { next(err); }
+};
+
+/**
+ * Edits the content of an existing text message. Only the sender may edit.
+ * Accepts either plain `content` or an E2E-encrypted `encryptedContent` + `nonce` pair.
+ */
+export const editMessage = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { content, encryptedContent, nonce } = req.body as {
+      content?: string; encryptedContent?: string; nonce?: string;
+    };
+    const message = await messageService.editMessage({
+      messageId: req.params.messageId,
+      userId: (req as AuthRequest).user._id,
+      content,
+      encryptedContent,
+      nonce,
+    });
+    res.json(message);
   } catch (err) { next(err); }
 };
 
