@@ -11,9 +11,16 @@ interface Message {
 }
 
 /**
+ * Maximum number of past messages sent as context on each request.
+ * Keeping this finite prevents token bloat on long conversations while
+ * still giving the model enough context to be coherent.
+ */
+const HISTORY_WINDOW = 20;
+
+/**
  * Floating AI chat widget powered by the Gemini API. Opens/closes via a
- * fixed-position button. Passes the full conversation history on each request
- * so the model has prior context.
+ * fixed-position button. Passes a sliding window of conversation history on
+ * each request so the model has recent context without unbounded growth.
  */
 export function AiChat() {
   const [open, setOpen] = useState(false);
@@ -43,7 +50,8 @@ export function AiChat() {
     setError(null);
     setLoading(true);
     try {
-      const history = newMessages.slice(0, -1).map((m) => ({ role: m.role, parts: [{ text: m.text }] }));
+      // Send only the last HISTORY_WINDOW messages as context (sliding window).
+      const history = newMessages.slice(0, -1).slice(-HISTORY_WINDOW).map((m) => ({ role: m.role, parts: [{ text: m.text }] }));
       const { reply } = await aiApi.chat(text, history);
       setMessages((prev) => [...prev, { role: "model", text: reply }]);
     } catch (e) {

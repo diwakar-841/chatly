@@ -43,11 +43,39 @@ interface CallContextValue {
 
 const CallContext = createContext<CallContextValue | null>(null);
 
-/** Public STUN servers — sufficient for most NAT traversal without a TURN server. */
-const ICE_SERVERS: RTCIceServer[] = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-];
+/**
+ * Builds the ICE server list at module load time.
+ *
+ * STUN handles most NAT types. Users behind symmetric NAT (common in
+ * corporate networks and some mobile carriers) need a TURN relay to
+ * complete ICE negotiation.
+ *
+ * Set these Vite env vars to enable TURN:
+ *   VITE_TURN_URL        — e.g. "turn:your-turn-server.example.com:3478"
+ *   VITE_TURN_USERNAME   — TURN username / credential username
+ *   VITE_TURN_CREDENTIAL — TURN password / time-limited credential
+ *
+ * If the vars are absent the app still works for the majority of users via
+ * STUN; calls will silently fail only for symmetric-NAT peers.
+ */
+function buildIceServers(): RTCIceServer[] {
+  const servers: RTCIceServer[] = [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+  ];
+
+  const turnUrl      = import.meta.env.VITE_TURN_URL as string | undefined;
+  const turnUsername = import.meta.env.VITE_TURN_USERNAME as string | undefined;
+  const turnCred     = import.meta.env.VITE_TURN_CREDENTIAL as string | undefined;
+
+  if (turnUrl && turnUsername && turnCred) {
+    servers.push({ urls: turnUrl, username: turnUsername, credential: turnCred });
+  }
+
+  return servers;
+}
+
+const ICE_SERVERS = buildIceServers();
 
 /**
  * Owns all WebRTC + signaling logic for 1-to-1 voice and video calls. Mount

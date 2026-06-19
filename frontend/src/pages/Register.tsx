@@ -74,8 +74,8 @@ export default function RegisterPage() {
     <div style={{ minHeight: "100vh", display: "flex", fontFamily: "'Inter', system-ui, sans-serif", background: "#0b141a", color: "#e9edef" }}>
 
       {/* Desktop branding panel */}
-      <div style={{ width: "45%", background: "linear-gradient(160deg, #0d1f28 0%, #0b2d2d 40%, #0a1f1a 100%)", padding: "3rem", position: "relative", overflow: "hidden", display: "none" }}
-        className="lg-flex-col lg-justify-between"
+      <div style={{ width: "45%", background: "linear-gradient(160deg, #0d1f28 0%, #0b2d2d 40%, #0a1f1a 100%)", padding: "3rem", position: "relative", overflow: "hidden" }}
+        className="hidden lg:flex lg:flex-col lg:justify-between"
       >
         <div style={{ position: "absolute", top: "-80px", right: "-80px", width: "320px", height: "320px", borderRadius: "50%", background: "radial-gradient(circle, rgba(0,168,132,0.18) 0%, transparent 70%)" }} />
         <div style={{ position: "absolute", bottom: "80px", left: "-60px", width: "260px", height: "260px", borderRadius: "50%", background: "radial-gradient(circle, rgba(0,168,132,0.12) 0%, transparent 70%)" }} />

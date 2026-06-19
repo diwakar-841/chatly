@@ -19,6 +19,12 @@ export const authApi = {
     api.get(`/auth/verify-email/${token}`).then((r) => r.data),
   resendVerification: () =>
     api.post("/auth/resend-verification").then((r) => r.data),
+  /** Registers the user's NaCl public key for E2E encryption. Called once per login/session. */
+  setPublicKey: (publicKey: string) =>
+    api.put("/auth/public-key", { publicKey }).then((r) => r.data),
+  /** Returns the NaCl public key of any user by ID. */
+  getPublicKey: (userId: string) =>
+    api.get<{ publicKey: string }>(`/auth/public-key/${userId}`).then((r) => r.data),
 };
 
 /** User profile and search endpoints. */
@@ -90,19 +96,28 @@ export const chatApi = {
     api.post(`/chats/${chatId}/invite/reject`).then((r) => r.data),
 };
 
-/** Message endpoints — send, delete, react, mark read, and clear chat. */
+/** Message endpoints — send, edit, delete, react, mark read, and clear chat. */
 export const messageApi = {
-  send: (data: { chatId: string; content?: string; type?: "text" | "image" | "file"; replyTo?: string; file?: File }) => {
+  send: (data: {
+    chatId: string; content?: string; type?: "text" | "image" | "file";
+    replyTo?: string; file?: File;
+    encryptedContent?: string; nonce?: string;
+  }) => {
     const fd = new FormData();
     fd.append("chatId", data.chatId);
     if (data.content) fd.append("content", data.content);
     if (data.type) fd.append("type", data.type);
     if (data.replyTo) fd.append("replyTo", data.replyTo);
     if (data.file) fd.append("file", data.file);
+    if (data.encryptedContent) fd.append("encryptedContent", data.encryptedContent);
+    if (data.nonce) fd.append("nonce", data.nonce);
     return api.post<Message>("/messages", fd, {
       headers: { "Content-Type": "multipart/form-data" },
     }).then((r) => r.data);
   },
+  /** Edits the content of an existing text message (plain or E2E-encrypted). */
+  edit: (messageId: string, data: { content?: string; encryptedContent?: string; nonce?: string }) =>
+    api.put<Message>(`/messages/${messageId}`, data).then((r) => r.data),
   delete: (messageId: string) => api.delete(`/messages/${messageId}`).then((r) => r.data),
   react: (messageId: string, emoji: string) =>
     api.post<Message>(`/messages/${messageId}/react`, { emoji }).then((r) => r.data),

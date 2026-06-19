@@ -47,11 +47,23 @@ export default function ChatsPage() {
       .catch(() => {});
   }, [location.key]);
 
-  /** Keeps the chat list in sync with real-time socket events (new messages, read receipts, new chats). */
+  /**
+   * Keeps the chat list in sync with real-time socket events (new messages, read receipts, new chats).
+   *
+   * FIX: Extended the `message:new` socket payload type to include `encryptedContent` and `nonce`
+   * so we can correctly identify encrypted messages and show the right preview text.
+   */
   useEffect(() => {
     if (!socket) return;
 
-    const onNew = (msg: { chat: string; content?: string; type?: string; createdAt: string }) => {
+    const onNew = (msg: {
+      chat: string;
+      content?: string;
+      type?: string;
+      createdAt: string;
+      encryptedContent?: string;
+      nonce?: string;
+    }) => {
       setChats((prev) => {
         const idx = prev.findIndex((c) => c._id === msg.chat);
         if (idx === -1) return prev;
@@ -205,6 +217,28 @@ export default function ChatsPage() {
     { key: "blocked", label: "Blocked" },
   ];
 
+  /**
+   * Returns the preview text for the last message in a chat row.
+   *
+   * FIX: Encrypted DM messages have content='' on the server (only encryptedContent is stored).
+   * The previous code fell through to "No messages yet" for those. Now we detect encrypted
+   * messages and show "🔒 Encrypted message" as the preview so the list looks correct.
+   */
+  function getLastMessagePreview(lastMsg: Chat["lastMessage"] | undefined | null): string {
+    if (!lastMsg) return "No messages yet";
+
+    // Encrypted DM message — content is intentionally empty on the server.
+    // The `encryptedContent` field signals it's an E2E message.
+    if ((lastMsg as { encryptedContent?: string }).encryptedContent) {
+      return "🔒 Encrypted message";
+    }
+
+    if (lastMsg.content) return lastMsg.content;
+    if (lastMsg.type === "image") return "📷 Photo";
+    if (lastMsg.type === "file") return "📎 File";
+    return "No messages yet";
+  }
+
   /** Renders a single row in the existing chats list. */
   const renderChatRow = (c: Chat) => {
     const other = c.isGroup ? null : otherMember(c);
@@ -214,9 +248,7 @@ export default function ChatsPage() {
       blockedIds !== null &&
       !blockedIds.has(other._id) &&
       onlineUsers.has(other._id);
-    const lastMsg = c.lastMessage;
-    const lastText = lastMsg?.content ||
-      (lastMsg?.type === "image" ? "📷 Photo" : lastMsg?.type === "file" ? "📎 File" : "No messages yet");
+    const lastText = getLastMessagePreview(c.lastMessage);
     const hasUnread = (c.unreadCount || 0) > 0;
     const avatarPath = c.isGroup ? `/chats/${c._id}/info` : other ? `/profile/${other._id}` : null;
 

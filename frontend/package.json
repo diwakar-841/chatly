@@ -19,7 +19,13 @@
     "react-hot-toast": "^2.4.1",
     "react-router-dom": "^6.21.1",
     "socket.io-client": "^4.6.2",
+<<<<<<< HEAD
     "zod": "^3.22.4",
+=======
+    "tweetnacl": "^1.0.3",
+    "tweetnacl-util": "^0.15.1",
+    "zod": "^4.4.3",
+>>>>>>> 82fca47 (Update Chatly frontend and E2E encryption)
     "zustand": "^4.4.7"
   },
   "devDependencies": {

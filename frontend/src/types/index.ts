@@ -13,6 +13,8 @@ export interface User {
   createdAt?: string;
   /** Friendship status relative to the requesting user (e.g. "none", "accepted"). */
   friendStatus?: string;
+  /** NaCl Curve25519 public key (base64) for E2E encryption. */
+  publicKey?: string;
 }
 
 /** Payload returned by login and register endpoints. */
@@ -42,6 +44,14 @@ export interface Message {
   deliveredTo?: string[];
   deleted?: boolean;
   isPinned?: boolean;
+  /** True when the sender has edited this message at least once. */
+  isEdited?: boolean;
+  /** Timestamp of the last edit. */
+  editedAt?: string | null;
+  /** Base64 NaCl ciphertext — present for E2E-encrypted DM messages. */
+  encryptedContent?: string;
+  /** Base64 nonce paired with encryptedContent. */
+  nonce?: string;
   createdAt: string;
   updatedAt: string;
 }

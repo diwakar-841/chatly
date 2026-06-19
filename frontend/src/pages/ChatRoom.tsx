@@ -3,10 +3,10 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, Send, Paperclip, Trash2, Reply, X, MoreVertical,
   Users, Pin, ChevronUp, EyeOff, UserMinus, Check, CheckCheck,
-  Phone, Video,
+  Phone, Video, Pencil,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { chatApi, messageApi, blockApi, requestApi, profileApi } from "@/api/endpoints";
+import { chatApi, messageApi, blockApi, requestApi, profileApi, authApi } from "@/api/endpoints";
 import type { Chat, Message } from "@/types";
 import { Avatar } from "@/components/Avatar";
 import { Spinner } from "@/components/Spinner";
@@ -16,8 +16,27 @@ import { useCall } from "@/context/CallContext";
 import { formatTime, cn } from "@/lib/utils";
 import { apiError } from "@/api/client";
 import { format, isToday, isYesterday } from "date-fns";
+import {
+  getOrCreateKeyPair,
+  deriveSharedSecret,
+  encryptForSend,
+  decryptMessage,
+  isKeyRegistered,
+  markKeyRegistered,
+} from "@/utils/encryption";
 
 const EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+
+/** Decodes HTML entities stored by older validator.escape() sanitisation so the edit input shows plain text. */
+function decodeHtmlEntities(str: string): string {
+  return str
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;/g, "'")
+    .replace(/&#39;/g, "'");
+}
 
 /** Converts an ISO timestamp to a human-readable date label for message group separators. */
 function dateSeparator(iso: string) {
@@ -37,7 +56,7 @@ function StatusTick({ status, mine }: { status?: string; mine: boolean }) {
   return <Check className="w-3 h-3 text-muted inline-block shrink-0" />;
 }
 
-/** Full-screen chat room — handles messages, real-time events, reactions, replies, and moderation. */
+/** Full-screen chat room — handles messages, real-time events, reactions, replies, editing, and E2E encryption. */
 export default function ChatRoomPage() {
   const { chatId = "" } = useParams();
   const navigate = useNavigate();
@@ -62,12 +81,24 @@ export default function ChatRoomPage() {
   const [isFriend, setIsFriend] = useState(true);
   const [menuLoading, setMenuLoading] = useState<string | null>(null);
 
+  /** Edit state — tracks the message being edited and the current edit text. */
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [editText, setEditText] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+
   const isBlocked = blockedByMe || blockedByThem;
 
   const fileRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const typingTimer = useRef<number>();
+  const editInputRef = useRef<HTMLInputElement>(null);
+
+  /** E2E encryption refs — kept as refs (not state) so they don't trigger re-renders. */
+  const sharedSecretRef = useRef<Uint8Array | null>(null);
+  const myKeyPairRef = useRef<{ publicKey: string; secretKey: string } | null>(null);
+  /** Flips to true once the shared secret is derived, causing getDisplayContent to re-evaluate. */
+  const [e2eReady, setE2EReady] = useState(false);
 
   /** Resolves the other participant for 1-to-1 chats. */
   const other = useMemo(() => {
@@ -78,6 +109,111 @@ export default function ChatRoomPage() {
   const title = chat?.isGroup ? chat.name : other?.fullName || other?.username || "";
   const online = other && !isBlocked && (isFriend || other.isPrivate === false) && onlineUsers.has(other._id);
   const isAdmin = chat?.admins?.includes(me?._id || "") || chat?.creator === me?._id;
+
+  /**
+   * FIX (root cause): Runs sequentially — register our key first, THEN derive the
+   * shared secret with the other party.
+   *
+   * The original code ran two parallel useEffects: one to register our public key
+   * and one to fetch the other user's key and derive the shared secret. Because they
+   * ran concurrently, the shared secret could be derived using a stale server key
+   * (the other side fetched our key before our registration call completed), causing
+   * all subsequent decryptions to fail silently.
+   *
+   * Now both steps are in a single async function so derivation never starts until
+   * our own key is confirmed on the server. A lazy-refresh flag ensures that if
+   * decryption later fails (the other side rotated their key while the chat was
+   * open), we re-derive automatically.
+   */
+  const rederivingRef = useRef(false);
+
+  useEffect(() => {
+    if (!me?._id || !other) {
+      sharedSecretRef.current = null;
+      setE2EReady(false);
+      return;
+    }
+
+    setE2EReady(false);
+    sharedSecretRef.current = null;
+
+    // FIX: pass me._id so each user gets their own isolated keypair in localStorage.
+    const kp = getOrCreateKeyPair(me._id);
+    myKeyPairRef.current = kp;
+
+    (async () => {
+      // ── Step 1: confirm OUR key is on the server ────────────────────────────
+      try {
+        const { publicKey: serverKey } = await authApi.getPublicKey(me._id);
+        if (serverKey !== kp.publicKey) {
+          await authApi.setPublicKey(kp.publicKey);
+          markKeyRegistered(me._id, kp.publicKey);
+        }
+      } catch {
+        // Server check failed — fall back to localStorage guard.
+        if (!isKeyRegistered(me._id, kp.publicKey)) {
+          try {
+            await authApi.setPublicKey(kp.publicKey);
+            markKeyRegistered(me._id, kp.publicKey);
+          } catch { /* continue even if registration fails */ }
+        }
+      }
+
+      // ── Step 2: fetch OTHER user's current key and derive shared secret ─────
+      try {
+        const { publicKey: otherPub } = await authApi.getPublicKey(other._id);
+        if (!otherPub || !myKeyPairRef.current) return;
+        sharedSecretRef.current = deriveSharedSecret(otherPub, myKeyPairRef.current.secretKey);
+        setE2EReady(true);
+      } catch {
+        sharedSecretRef.current = null;
+        setE2EReady(false);
+      }
+    })();
+  }, [me?._id, other]);
+
+  /**
+   * Returns the displayable text content for a message.
+   * Decrypts E2E-encrypted payloads when a shared secret is available.
+   *
+   * FIX: Show "🔒 Encrypted message" (more descriptive) when decryption fails due
+   * to a key mismatch. Show empty string (loading state) when the secret is not
+   * ready yet, so the message isn't permanently marked as undecryptable.
+   */
+  const getDisplayContent = useCallback((m: Message): string => {
+    if (m.encryptedContent && m.nonce) {
+      if (sharedSecretRef.current) {
+        const decrypted = decryptMessage(m.encryptedContent, m.nonce, sharedSecretRef.current);
+        if (decrypted !== null) return decrypted;
+
+        // Decryption failed — the other user may have rotated their key since we
+        // last opened this chat. Schedule a single background re-derivation; if
+        // the new secret works, we flip e2eReady to trigger a re-render.
+        if (!rederivingRef.current && other) {
+          rederivingRef.current = true;
+          authApi.getPublicKey(other._id)
+            .then(({ publicKey: freshPub }) => {
+              if (!freshPub || !myKeyPairRef.current) return;
+              const newSecret = deriveSharedSecret(freshPub, myKeyPairRef.current.secretKey);
+              // Only switch to the new secret if it actually decrypts this message.
+              const testDecrypt = decryptMessage(m.encryptedContent!, m.nonce!, newSecret);
+              if (testDecrypt !== null) {
+                sharedSecretRef.current = newSecret;
+                setE2EReady((prev) => !prev); // toggle to force useCallback refresh
+              }
+            })
+            .catch(() => {})
+            .finally(() => { rederivingRef.current = false; });
+        }
+
+        return "🔒 Encrypted message";
+      }
+      // Shared secret not yet derived — show empty while loading, not a permanent lock.
+      return "";
+    }
+    return m.content ?? "";
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [e2eReady, other]);
 
   /** Fetches a page of messages, optionally prepending them for infinite-scroll. */
   const loadMessages = useCallback(
@@ -150,6 +286,8 @@ export default function ChatRoomPage() {
     };
     const onDeleted = ({ messageId }: { messageId: string }) =>
       setMessages((p) => p.map((m) => m._id === messageId ? { ...m, deleted: true, content: "" } : m));
+    const onEdited = (updated: Message) =>
+      setMessages((p) => p.map((m) => m._id === updated._id ? { ...m, ...updated } : m));
     const onReaction = ({ messageId, reactions }: { messageId: string; reactions: Message["reactions"] }) =>
       setMessages((p) => p.map((m) => m._id === messageId ? { ...m, reactions } : m));
     const onTyping = (d: { chatId: string; username: string; isTyping: boolean }) => {
@@ -208,6 +346,7 @@ export default function ChatRoomPage() {
 
     socket.on("message:new", onNew);
     socket.on("message:deleted", onDeleted);
+    socket.on("message:edited", onEdited);
     socket.on("message:reaction", onReaction);
     socket.on("chat:typing", onTyping);
     socket.on("chat:pinned", onPinned);
@@ -220,6 +359,7 @@ export default function ChatRoomPage() {
       socket.emit("chat:leave", chatId);
       socket.off("message:new", onNew);
       socket.off("message:deleted", onDeleted);
+      socket.off("message:edited", onEdited);
       socket.off("message:reaction", onReaction);
       socket.off("chat:typing", onTyping);
       socket.off("chat:pinned", onPinned);
@@ -259,19 +399,37 @@ export default function ChatRoomPage() {
     }, 1500);
   };
 
-  /** Sends a text or file message and appends it optimistically to the list. */
+  /**
+   * Sends a text or file message. For DM chats where a shared E2E secret is
+   * available, text messages are encrypted before sending.
+   *
+   * FIX: Do NOT send the plaintext `content` alongside encrypted data.
+   * The previous code included `content: text.trim()` in E2E payloads, which
+   * leaked the plaintext to the server (even though the server discarded it).
+   */
   const send = async (e?: React.FormEvent, file?: File) => {
     e?.preventDefault();
     if (!file && !text.trim()) return;
     setSending(true);
     try {
-      const msg = await messageApi.send({
-        chatId,
-        content: text.trim() || undefined,
-        type: file ? (file.type.startsWith("image/") ? "image" : "file") : "text",
-        replyTo: replyTo?._id,
-        file,
-      });
+      const isE2E = !file && !chat?.isGroup && !!sharedSecretRef.current && !!text.trim();
+      let sendData: Parameters<typeof messageApi.send>[0];
+
+      if (isE2E) {
+        const { encrypted, nonce } = encryptForSend(text.trim(), sharedSecretRef.current!);
+        // FIX: no `content` field — never send plaintext alongside ciphertext.
+        sendData = { chatId, type: "text", replyTo: replyTo?._id, encryptedContent: encrypted, nonce };
+      } else {
+        sendData = {
+          chatId,
+          content: text.trim() || undefined,
+          type: file ? (file.type.startsWith("image/") ? "image" : "file") : "text",
+          replyTo: replyTo?._id,
+          file,
+        };
+      }
+
+      const msg = await messageApi.send(sendData);
       setMessages((p) => (p.some((m) => m._id === msg._id) ? p : [...p, msg]));
       setText("");
       setReplyTo(null);
@@ -299,6 +457,77 @@ export default function ChatRoomPage() {
       toast.error(apiError(e));
     }
     setOpenMenu(null);
+  };
+
+  /**
+   * Enters edit mode for the given message, prefilling the edit input with decrypted content.
+   *
+   * FIX: If the message is E2E-encrypted but decryption fails (key mismatch from a
+   * different session/device), abort editing with a clear error instead of silently
+   * entering edit mode with an empty field — which would wipe the message content.
+   */
+  const startEdit = (m: Message) => {
+    if (m.encryptedContent && m.nonce) {
+      if (!sharedSecretRef.current) {
+        toast.error("Cannot edit: encryption keys not ready yet.");
+        setOpenMenu(null);
+        return;
+      }
+      const decrypted = decryptMessage(m.encryptedContent, m.nonce, sharedSecretRef.current);
+      if (decrypted === null) {
+        toast.error("Cannot edit: message was encrypted by a different session.");
+        setOpenMenu(null);
+        return;
+      }
+      setEditingMessage(m);
+      setEditText(decodeHtmlEntities(decrypted));
+    } else {
+      setEditingMessage(m);
+      setEditText(decodeHtmlEntities(m.content || ""));
+    }
+    setOpenMenu(null);
+    setTimeout(() => editInputRef.current?.focus(), 50);
+  };
+
+  /** Cancels edit mode without saving. */
+  const cancelEdit = () => {
+    setEditingMessage(null);
+    setEditText("");
+  };
+
+  /**
+   * Saves the edited message. Encrypts the new content for E2E DMs when a shared
+   * secret is available. The backend sets isEdited=true and broadcasts message:edited.
+   *
+   * FIX: Do NOT send the plaintext `content` alongside encrypted data.
+   * The previous code included `content: editText.trim()` in E2E payloads, leaking
+   * the plaintext to the server.
+   */
+  const submitEdit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!editingMessage || !editText.trim() || editSaving) return;
+    setEditSaving(true);
+    try {
+      const isE2E = !chat?.isGroup && !!sharedSecretRef.current;
+      let editData: { content?: string; encryptedContent?: string; nonce?: string };
+
+      if (isE2E) {
+        const { encrypted, nonce } = encryptForSend(editText.trim(), sharedSecretRef.current!);
+        // FIX: no `content` field — never send plaintext alongside ciphertext.
+        editData = { encryptedContent: encrypted, nonce };
+      } else {
+        editData = { content: editText.trim() };
+      }
+
+      const updated = await messageApi.edit(editingMessage._id, editData);
+      setMessages((p) => p.map((m) => m._id === updated._id ? { ...m, ...updated } : m));
+      setEditingMessage(null);
+      setEditText("");
+    } catch (e) {
+      toast.error(apiError(e, "Failed to edit message"));
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   /** Adds or toggles a reaction emoji on a message. */
@@ -456,7 +685,7 @@ export default function ChatRoomPage() {
   const isMine = (m: Message) =>
     (typeof m.sender === "string" ? m.sender : m.sender._id) === me?._id;
 
-    const computeStatus = (m: Message): "sent" | "delivered" | "read" => {
+  const computeStatus = (m: Message): "sent" | "delivered" | "read" => {
     const others = (chat?.members ?? [])
       .map((mem) => (typeof mem === "string" ? mem : mem._id))
       .filter((id) => id !== me?._id);
@@ -464,392 +693,438 @@ export default function ChatRoomPage() {
     const readBy = (m.readBy ?? []).map(String);
     const deliveredTo = (m.deliveredTo ?? []).map(String);
     if (others.every((id) => readBy.includes(id))) return "read";
-    if (others.some((id) => readBy.includes(id) || deliveredTo.includes(id))) return "delivered";
+    if (others.some((id) => deliveredTo.includes(id))) return "delivered";
     return "sent";
   };
 
-  /** Starts a voice or video call with the other DM participant. */
-  const placeCall = (type: "audio" | "video") => {
-    if (!other) return;
-    if (isBlocked) {
-      toast.error("You can't call a blocked user");
-      return;
-    }
-    if (callStatus !== "idle") return;
-    startCall(
-      { _id: other._id, username: other.username, fullName: other.fullName, avatar: other.avatar },
-      chatId,
-      type
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Spinner className="w-6 h-6 text-accent" />
+      </div>
     );
-  };
+  }
 
-  /** Groups messages by calendar date for separator rendering. */
-  const grouped = useMemo(() => {
-    const result: { date: string; messages: Message[] }[] = [];
-    for (const msg of messages) {
-      const label = dateSeparator(msg.createdAt);
-      const last = result[result.length - 1];
-      if (last && last.date === label) {
-        last.messages.push(msg);
-      } else {
-        result.push({ date: label, messages: [msg] });
-      }
-    }
-    return result;
-  }, [messages]);
+  if (!chat) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3 text-muted">
+        <p>Chat not found</p>
+        <button onClick={() => navigate("/chats")} className="btn-ghost text-sm">Back to chats</button>
+      </div>
+    );
+  }
 
-  const pinnedCount = chat?.pinnedMessages?.length || 0;
+  const pinnedMessages = chat.pinnedMessages ?? [];
 
   return (
     <div className="flex flex-col h-full" style={{ background: "#0b141a" }}>
-
+      {/* Header */}
       <header
-        className="flex items-center gap-2 px-2 md:px-3 py-2 shrink-0"
-        style={{ background: "#1f2c34", borderBottom: "1px solid rgba(255,255,255,0.05)", boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}
+        className="flex items-center gap-3 px-3 py-2.5 shrink-0 z-10"
+        style={{ background: "#1f2c34", borderBottom: "1px solid rgba(255,255,255,0.06)" }}
       >
-        <button
-          onClick={() => navigate("/chats")}
-          className="p-2 rounded-full hover:bg-white/10 transition shrink-0"
-          style={{ color: "#aebac1" }}
-        >
+        <button onClick={() => navigate("/chats")} className="md:hidden p-1.5 rounded-full hover:bg-white/10 transition" style={{ color: "#aebac1" }}>
           <ArrowLeft className="w-5 h-5" />
         </button>
 
-        <button onClick={() => other && navigate(`/profile/${other._id}`)} className="shrink-0">
+        <button
+          className="shrink-0"
+          onClick={() => chat.isGroup ? navigate(`/chats/${chatId}/info`) : other && navigate(`/profile/${other._id}`)}
+        >
           <Avatar
-            src={chat?.isGroup ? chat.groupAvatar : other?.avatar}
+            src={chat.isGroup ? chat.groupAvatar : other?.avatar}
             name={title || ""}
             online={!!online}
             size={40}
           />
         </button>
 
-        <div className="flex-1 min-w-0 pl-1">
-          <div className="font-semibold text-[15px] truncate leading-tight" style={{ color: "#e9edef" }}>
-            {title}
-          </div>
-          <div className="text-[12px] leading-tight truncate" style={{ color: "#8696a0" }}>
-            {typingUser && !isBlocked ? (
-              <span style={{ color: "#25d366" }}>{typingUser} is typing…</span>
-            ) : chat?.isGroup ? (
-              `${chat.members.length} members`
-            ) : online ? (
-              <span style={{ color: "#25d366" }}>online</span>
-            ) : (
-              "offline"
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-0.5 shrink-0">
-          {chat?.isGroup && pinnedCount > 0 && (
-            <div
-              className="flex items-center gap-1 px-2 py-1 rounded-full text-xs mr-1"
-              style={{ background: "rgba(0,168,132,0.15)", color: "#25d366" }}
-            >
-              <Pin className="w-3 h-3" />
-              <span>{pinnedCount}</span>
+        <div
+          className="flex-1 min-w-0 cursor-pointer"
+          onClick={() => chat.isGroup ? navigate(`/chats/${chatId}/info`) : other && navigate(`/profile/${other._id}`)}
+        >
+          <div className="font-semibold text-[15px] leading-tight truncate" style={{ color: "#e9edef" }}>{title}</div>
+          {!chat.isGroup && (
+            <div className="text-xs leading-tight" style={{ color: "#8696a0" }}>
+              {online ? "online" : other?.lastSeen ? `last seen ${formatTime(other.lastSeen)}` : ""}
             </div>
           )}
+          {chat.isGroup && (
+            <div className="text-xs leading-tight truncate" style={{ color: "#8696a0" }}>
+              {chat.members.map((m) => m.fullName || m.username).join(", ")}
+            </div>
+          )}
+        </div>
 
-          {!chat?.isGroup && !isBlocked && (
+        <div className="flex items-center gap-1 shrink-0">
+          {!chat.isGroup && !isBlocked && (isFriend || other?.isPrivate === false) && (
             <>
               <button
-                onClick={() => placeCall("audio")}
-                disabled={callStatus !== "idle"}
-                aria-label="Start voice call"
-                title="Voice call"
-                className="p-2 rounded-full hover:bg-white/10 transition disabled:opacity-40"
-                style={{ color: "#aebac1" }}
-              >
-                <Phone className="w-5 h-5" />
-              </button>
+  onClick={() => other && startCall(other, chatId, "audio")}
+  disabled={callStatus !== "idle"}
+  className="p-2 rounded-full hover:bg-white/10 transition disabled:opacity-40"
+  style={{ color: "#aebac1" }}
+  title="Voice call"
+>
+  <Phone className="w-5 h-5" />
+</button>
               <button
-                onClick={() => placeCall("video")}
-                disabled={callStatus !== "idle"}
-                aria-label="Start video call"
-                title="Video call"
-                className="p-2 rounded-full hover:bg-white/10 transition disabled:opacity-40"
-                style={{ color: "#aebac1" }}
-              >
-                <Video className="w-5 h-5" />
-              </button>
+  onClick={() => other && startCall(other, chatId, "video")}
+  disabled={callStatus !== "idle"}
+  className="p-2 rounded-full hover:bg-white/10 transition disabled:opacity-40"
+  style={{ color: "#aebac1" }}
+  title="Video call"
+>
+  <Video className="w-5 h-5" />
+</button>
             </>
           )}
-
-          {chat?.isGroup && (
-            <button
-              onClick={() => navigate(`/chats/${chatId}/info`)}
-              className="p-2 rounded-full hover:bg-white/10 transition"
-              style={{ color: "#aebac1" }}
-            >
-              <Users className="w-5 h-5" />
-            </button>
-          )}
-
           <div className="relative">
             <button
-              onClick={() => setShowMenu((p) => !p)}
+              onClick={() => setShowMenu((s) => !s)}
               className="p-2 rounded-full hover:bg-white/10 transition"
               style={{ color: "#aebac1" }}
             >
               <MoreVertical className="w-5 h-5" />
             </button>
-
             {showMenu && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-                <div
-                  className="absolute right-0 top-11 z-20 min-w-[200px] rounded-xl overflow-hidden py-1 shadow-2xl"
-                  style={{ background: "#233138", border: "1px solid rgba(255,255,255,0.07)" }}
-                >
-                  {[
-                    { key: "clear-me", label: "Delete for me", icon: <Trash2 className="w-4 h-4" />, color: "#aebac1", onClick: clearForMe, show: !chat?.isGroup },
-                    { key: "clear-both", label: "Delete for everyone", icon: <EyeOff className="w-4 h-4" />, color: "#aebac1", onClick: clearForBoth, show: !chat?.isGroup },
-                    { key: "block", label: blockedByMe ? `Unblock ${other?.fullName || other?.username}` : "Block user", icon: <UserMinus className="w-4 h-4" />, color: blockedByMe ? "#25d366" : "#ef4444", onClick: toggleBlock, show: !chat?.isGroup },
-                    { key: "unfriend", label: "Remove friend", icon: <UserMinus className="w-4 h-4" />, color: "#ef4444", onClick: unfriend, show: !chat?.isGroup && other?.isPrivate !== false },
-                    { key: "remove-chat", label: "Remove chat", icon: <X className="w-4 h-4" />, color: "#aebac1", onClick: removeChat, show: !chat?.isGroup },
-                    { key: "leave-group", label: "Leave group", icon: <UserMinus className="w-4 h-4" />, color: "#ef4444", onClick: leaveGroup, show: !!chat?.isGroup },
-                    { key: "remove-group-chat", label: "Remove from list", icon: <X className="w-4 h-4" />, color: "#aebac1", onClick: removeGroupChat, show: !!chat?.isGroup },
-                  ]
-                    .filter((item) => item.show)
-                    .map((item) => (
-                      <button
-                        key={item.key}
-                        onClick={item.onClick}
-                        disabled={!!menuLoading}
-                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition text-left disabled:opacity-50"
-                        style={{ color: item.color }}
-                      >
-                        {menuLoading === item.key ? <Spinner className="w-4 h-4" /> : item.icon}
-                        <span className="text-sm">{item.label}</span>
+              <div
+                className="absolute right-0 top-full mt-1 rounded-lg shadow-xl z-50 overflow-hidden"
+                style={{ background: "#233138", border: "1px solid rgba(255,255,255,0.08)", minWidth: "180px" }}
+                onMouseLeave={() => setShowMenu(false)}
+              >
+                {chat.isGroup ? (
+                  <>
+                    <button onClick={() => { navigate(`/chats/${chatId}/info`); setShowMenu(false); }} className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-white/5 transition" style={{ color: "#e9edef" }}>
+                      <Users className="w-4 h-4" /> Group info
+                    </button>
+                    <button onClick={clearForMe} disabled={menuLoading === "clear-me"} className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-white/5 transition" style={{ color: "#e9edef" }}>
+                      <EyeOff className="w-4 h-4" /> {menuLoading === "clear-me" ? "Clearing…" : "Clear for me"}
+                    </button>
+                    {isAdmin && (
+                      <button onClick={clearForBoth} disabled={menuLoading === "clear-both"} className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-white/5 transition" style={{ color: "#e9edef" }}>
+                        <Trash2 className="w-4 h-4" /> {menuLoading === "clear-both" ? "Clearing…" : "Clear for all"}
                       </button>
-                    ))}
-                </div>
-              </>
+                    )}
+                    <button onClick={leaveGroup} disabled={menuLoading === "leave-group"} className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-white/5 transition" style={{ color: "#ef4444" }}>
+                      <UserMinus className="w-4 h-4" /> {menuLoading === "leave-group" ? "Leaving…" : "Leave group"}
+                    </button>
+                    <button onClick={removeGroupChat} disabled={menuLoading === "remove-group-chat"} className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-white/5 transition" style={{ color: "#8696a0" }}>
+                      <X className="w-4 h-4" /> {menuLoading === "remove-group-chat" ? "Removing…" : "Remove from list"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={clearForMe} disabled={menuLoading === "clear-me"} className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-white/5 transition" style={{ color: "#e9edef" }}>
+                      <EyeOff className="w-4 h-4" /> {menuLoading === "clear-me" ? "Clearing…" : "Clear for me"}
+                    </button>
+                    <button onClick={clearForBoth} disabled={menuLoading === "clear-both"} className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-white/5 transition" style={{ color: "#e9edef" }}>
+                      <Trash2 className="w-4 h-4" /> {menuLoading === "clear-both" ? "Clearing…" : "Clear for both"}
+                    </button>
+                    <button onClick={toggleBlock} disabled={menuLoading === "block"} className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-white/5 transition" style={{ color: blockedByMe ? "#25d366" : "#ef4444" }}>
+                      <UserMinus className="w-4 h-4" /> {menuLoading === "block" ? "…" : blockedByMe ? "Unblock" : "Block user"}
+                    </button>
+                    <button onClick={unfriend} disabled={menuLoading === "unfriend"} className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-white/5 transition" style={{ color: "#ef4444" }}>
+                      <UserMinus className="w-4 h-4" /> {menuLoading === "unfriend" ? "Removing…" : "Unfriend"}
+                    </button>
+                    <button onClick={removeChat} disabled={menuLoading === "remove-chat"} className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-white/5 transition" style={{ color: "#8696a0" }}>
+                      <X className="w-4 h-4" /> {menuLoading === "remove-chat" ? "Removing…" : "Remove chat"}
+                    </button>
+                  </>
+                )}
+              </div>
             )}
           </div>
         </div>
       </header>
 
-      {chat?.pinnedMessages && chat.pinnedMessages.length > 0 && (
+      {/* Pinned messages banner */}
+      {pinnedMessages.length > 0 && (
         <div
-          className="flex items-center gap-2 px-4 py-2 shrink-0 cursor-pointer hover:bg-white/5 transition"
-          style={{ background: "#1a2632", borderBottom: "1px solid rgba(255,255,255,0.05)" }}
+          className="flex items-center gap-2 px-4 py-2 shrink-0 cursor-pointer"
+          style={{ background: "#1a2632", borderBottom: "1px solid rgba(255,255,255,0.06)" }}
         >
           <Pin className="w-3.5 h-3.5 shrink-0" style={{ color: "#25d366" }} />
-          <span className="text-xs truncate" style={{ color: "#8696a0" }}>
-            {pinnedCount} pinned message{pinnedCount > 1 ? "s" : ""}
+          <span className="text-xs truncate flex-1" style={{ color: "#8696a0" }}>
+            {pinnedMessages.length} pinned message{pinnedMessages.length !== 1 ? "s" : ""}
           </span>
-          <ChevronUp className="w-3.5 h-3.5 ml-auto shrink-0" style={{ color: "#8696a0" }} />
+          <ChevronUp className="w-3.5 h-3.5 shrink-0" style={{ color: "#8696a0" }} />
         </div>
       )}
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 md:px-4 py-3">
-        {loading ? (
-          <div className="flex items-center justify-center h-full">
-            <Spinner className="w-6 h-6" />
+      {/* Message list */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
+        {hasMore && (
+          <div className="flex justify-center py-2">
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="text-xs px-3 py-1.5 rounded-full transition"
+              style={{ background: "#1f2c34", color: "#8696a0" }}
+            >
+              {loadingMore ? <Spinner className="w-3.5 h-3.5" /> : "Load earlier messages"}
+            </button>
           </div>
-        ) : (
-          <>
-            {hasMore && (
-              <div className="flex justify-center mb-4">
-                <button
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                  className="text-xs px-4 py-1.5 rounded-full transition"
-                  style={{ background: "#1f2c34", color: "#8696a0", border: "1px solid rgba(255,255,255,0.07)" }}
-                >
-                  {loadingMore ? "Loading…" : "Load older messages"}
-                </button>
-              </div>
-            )}
+        )}
 
-            {grouped.map(({ date, messages: msgs }) => (
-              <div key={date}>
-                <div className="flex justify-center my-3">
-                  <span
-                    className="text-[11px] px-3 py-1 rounded-full"
-                    style={{ background: "#1f2c34", color: "#8696a0", border: "1px solid rgba(255,255,255,0.06)" }}
+        {messages.length === 0 && !loading && (
+          <div className="flex flex-col items-center justify-center py-16 gap-2">
+            <p className="text-sm" style={{ color: "#8696a0" }}>No messages yet. Say hello!</p>
+            {!chat.isGroup && (
+              <p className="text-xs" style={{ color: "#4a5568" }}>
+                🔒 Messages in this chat are end-to-end encrypted
+              </p>
+            )}
+          </div>
+        )}
+
+        {messages.map((m, i) => {
+          const prev = messages[i - 1];
+          const showDate = !prev || dateSeparator(m.createdAt) !== dateSeparator(prev.createdAt);
+          const mine = isMine(m);
+          const status = mine ? computeStatus(m) : undefined;
+          const senderName = typeof m.sender === "object" ? (m.sender.fullName || m.sender.username) : "";
+          const senderAvatar = typeof m.sender === "object" ? m.sender.avatar : undefined;
+          const isPinned = pinnedMessages.includes(m._id);
+
+          if (m.deleted) {
+            return (
+              <div key={m._id}>
+                {showDate && (
+                  <div className="flex justify-center my-3">
+                    <span className="text-[11px] px-3 py-1 rounded-full" style={{ background: "#1f2c34", color: "#8696a0" }}>
+                      {dateSeparator(m.createdAt)}
+                    </span>
+                  </div>
+                )}
+                <div className={cn("flex items-end gap-1.5 mb-0.5", mine ? "justify-end" : "justify-start")}>
+                  <div
+                    className="px-3 py-2 rounded-lg text-sm italic"
+                    style={{ background: mine ? "#1f4b3f" : "#1f2c34", color: "#8696a0", maxWidth: "70%" }}
                   >
-                    {date}
+                    This message was deleted
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          const displayContent = getDisplayContent(m);
+          const replyMsg = m.replyTo && typeof m.replyTo === "object" ? m.replyTo as Message : null;
+
+          return (
+            <div key={m._id}>
+              {showDate && (
+                <div className="flex justify-center my-3">
+                  <span className="text-[11px] px-3 py-1 rounded-full" style={{ background: "#1f2c34", color: "#8696a0" }}>
+                    {dateSeparator(m.createdAt)}
                   </span>
                 </div>
+              )}
 
-                {msgs.map((m, idx) => {
-                  const mine = isMine(m);
-                  const sender = m.sender;
-                  const senderId = typeof sender === "string" ? sender : sender._id;
-                  const prevMsg = msgs[idx - 1];
-                  const nextMsg = msgs[idx + 1];
-                  const prevSender = prevMsg ? (typeof prevMsg.sender === "string" ? prevMsg.sender : prevMsg.sender._id) : null;
-                  const nextSender = nextMsg ? (typeof nextMsg.sender === "string" ? nextMsg.sender : nextMsg.sender._id) : null;
-                  const isFirst = senderId !== prevSender;
-                  const isLast = senderId !== nextSender;
-                  const showAvatar = !mine && chat?.isGroup;
-                  const isPinned = chat?.pinnedMessages?.includes(m._id);
-                  const borderRadius = mine
-                    ? `${isFirst ? 18 : 18}px ${isFirst ? 4 : 18}px ${isLast ? 4 : 18}px 18px`
-                    : `${isFirst ? 4 : 18}px ${isFirst ? 18 : 18}px 18px ${isLast ? 4 : 18}px`;
+              <div
+                className={cn("flex items-end gap-1.5 group mb-0.5 relative", mine ? "justify-end" : "justify-start")}
+              >
+                {!mine && chat.isGroup && (
+                  <div className="shrink-0 w-7 h-7 mb-1">
+                    <Avatar src={senderAvatar} name={senderName} size={28} />
+                  </div>
+                )}
 
-                  return (
+                <div className={cn("relative max-w-[70%]")}>
+                  {/* Context menu trigger */}
+                  <button
+                    className={cn(
+                      "absolute top-1/2 -translate-y-1/2 z-10 p-1 rounded-full opacity-0 group-hover:opacity-100 transition",
+                      mine ? "-left-8" : "-right-8"
+                    )}
+                    style={{ background: "#1f2c34" }}
+                    onClick={() => setOpenMenu(openMenu === m._id ? null : m._id)}
+                  >
+                    <MoreVertical className="w-3.5 h-3.5" style={{ color: "#8696a0" }} />
+                  </button>
+
+                  {/* Context menu */}
+                  {openMenu === m._id && (
                     <div
-                      key={m._id}
                       className={cn(
-                        "flex items-end gap-1.5 mb-0.5",
-                        mine ? "justify-end" : "justify-start",
-                        isFirst && idx > 0 ? "mt-3" : "mt-0.5"
+                        "absolute z-20 rounded-lg shadow-xl overflow-hidden",
+                        mine ? "right-full mr-2" : "left-full ml-2",
+                        "top-0"
                       )}
+                      style={{ background: "#233138", border: "1px solid rgba(255,255,255,0.08)", minWidth: "160px" }}
                     >
-                      {showAvatar ? (
-                        <div className="shrink-0 mb-1">
-                          {isLast ? (
-                            <Avatar
-                              src={sender && typeof sender === "object" ? sender.avatar : undefined}
-                              name={sender && typeof sender === "object" ? sender.fullName || sender.username : "?"}
-                              size={26}
-                            />
-                          ) : (
-                            <div className="w-[26px]" />
-                          )}
-                        </div>
-                      ) : null}
-
-                      <div className="relative group max-w-[72%]">
-                        <div
-                          className={cn("relative px-3 pt-2 pb-1.5 text-[14.5px] leading-relaxed break-words", m.deleted && "opacity-50 italic")}
-                          style={{ background: mine ? "#015243" : "#1f2c34", color: "#e9edef", borderRadius, boxShadow: "0 1px 3px rgba(0,0,0,0.25)", minWidth: "60px" }}
-                        >
-                          {isPinned && <Pin className="w-3 h-3 inline mr-1 -mt-0.5" style={{ color: "#25d366" }} />}
-
-                          {!mine && chat?.isGroup && sender && typeof sender === "object" && isFirst && (
-                            <div className="text-[11px] font-semibold mb-0.5" style={{ color: "#25d366" }}>
-                              {sender.fullName || sender.username}
-                            </div>
-                          )}
-
-                          {!m.deleted && m.replyTo && typeof m.replyTo === "object" && (
-                            <div
-                              className="mb-2 pl-2 py-1 pr-2 rounded-lg text-xs line-clamp-2"
-                              style={{ background: "rgba(0,0,0,0.2)", borderLeft: "3px solid #25d366", color: "#8696a0" }}
-                            >
-                              {(m.replyTo as Message).content || "Attachment"}
-                            </div>
-                          )}
-
-                          {m.deleted ? (
-                            <span className="text-xs italic" style={{ color: "#8696a0" }}>Message deleted</span>
-                          ) : (
-                            <>
-                              {m.type === "image" && m.mediaUrl && (
-                                <img src={m.mediaUrl} alt="img" className="rounded-xl max-w-full mb-1 max-h-60 object-cover w-full" />
-                              )}
-                              {m.type === "file" && m.mediaUrl && (
-                                <a href={m.mediaUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs underline py-1" style={{ color: "#53bdeb" }}>
-                                  📎 Download file
-                                </a>
-                              )}
-                              {m.content && <span className="whitespace-pre-wrap">{m.content}</span>}
-                            </>
-                          )}
-
-                          <div className="flex items-center justify-end gap-1 float-right ml-2 mt-0.5 -mb-0.5">
-                            <span className="text-[10px] leading-none" style={{ color: "rgba(134,150,160,0.9)" }}>
-                              {formatTime(m.createdAt)}
-                            </span>
-                            <StatusTick status={computeStatus(m)} mine={mine} />
-                          </div>
-                          <div style={{ clear: "both" }} />
-
-                          {!m.deleted && (
-                            <button
-                              onClick={() => setOpenMenu(openMenu === m._id ? null : m._id)}
-                              className="absolute -top-2 opacity-0 group-hover:opacity-100 rounded-full p-1 transition"
-                              style={{
-                                right: mine ? "auto" : "-8px",
-                                left: mine ? "-8px" : "auto",
-                                background: "#233138",
-                                border: "1px solid rgba(255,255,255,0.07)",
-                                boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
-                              }}
-                            >
-                              <MoreVertical className="w-3 h-3" style={{ color: "#8696a0" }} />
-                            </button>
-                          )}
-                        </div>
-
-                        {!!m.reactions?.length && (
-                          <div className={cn("flex gap-1 mt-1 flex-wrap", mine ? "justify-end" : "justify-start")}>
-                            {m.reactions.map((r, j) => (
-                              <span
-                                key={j}
-                                className="px-1.5 py-0.5 rounded-full text-xs"
-                                style={{ background: "#1f2c34", border: "1px solid rgba(255,255,255,0.07)", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }}
-                              >
-                                {r.emoji}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        {openMenu === m._id && (
-                          <>
-                            <div className="fixed inset-0 z-10" onClick={() => setOpenMenu(null)} />
-                            <div
-                              className={cn("absolute z-20 mt-1 p-2 flex gap-1 flex-wrap shadow-2xl rounded-2xl", mine ? "right-0" : "left-0")}
-                              style={{ background: "#233138", border: "1px solid rgba(255,255,255,0.07)" }}
-                            >
-                              {EMOJIS.map((e) => (
-                                <button key={e} onClick={() => react(m._id, e)} className="hover:bg-white/10 rounded-full p-1.5 text-base transition">{e}</button>
-                              ))}
-                              <div className="w-px self-stretch mx-0.5" style={{ background: "rgba(255,255,255,0.08)" }} />
-                              <button onClick={() => { setReplyTo(m); setOpenMenu(null); }} className="p-1.5 rounded-full hover:bg-white/10 transition" title="Reply" style={{ color: "#aebac1" }}>
-                                <Reply className="w-4 h-4" />
-                              </button>
-                              {(isAdmin || mine) && chat?.isGroup && (
-                                <button onClick={() => pinMessage(m._id)} className="p-1.5 rounded-full hover:bg-white/10 transition" title={isPinned ? "Unpin" : "Pin"} style={{ color: isPinned ? "#25d366" : "#aebac1" }}>
-                                  <Pin className="w-4 h-4" />
-                                </button>
-                              )}
-                              {mine && (
-                                <button onClick={() => removeMessage(m._id)} className="p-1.5 rounded-full hover:bg-white/10 transition" title="Delete" style={{ color: "#ef4444" }}>
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
-                          </>
-                        )}
+                      <div className="flex gap-2 px-3 py-2 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+                        {EMOJIS.map((emoji) => (
+                          <button key={emoji} onClick={() => react(m._id, emoji)} className="text-lg hover:scale-125 transition-transform">
+                            {emoji}
+                          </button>
+                        ))}
                       </div>
+                      <button
+                        onClick={() => { setReplyTo(m); setOpenMenu(null); }}
+                        className="flex w-full items-center gap-2.5 px-3 py-2 text-sm hover:bg-white/5 transition"
+                        style={{ color: "#e9edef" }}
+                      >
+                        <Reply className="w-4 h-4" /> Reply
+                      </button>
+                      {mine && m.type === "text" && (
+                        <button
+                          onClick={() => startEdit(m)}
+                          className="flex w-full items-center gap-2.5 px-3 py-2 text-sm hover:bg-white/5 transition"
+                          style={{ color: "#e9edef" }}
+                        >
+                          <Pencil className="w-4 h-4" /> Edit
+                        </button>
+                      )}
+                      {chat.isGroup && isAdmin && (
+                        <button
+                          onClick={() => pinMessage(m._id)}
+                          className="flex w-full items-center gap-2.5 px-3 py-2 text-sm hover:bg-white/5 transition"
+                          style={{ color: "#e9edef" }}
+                        >
+                          <Pin className="w-4 h-4" /> {isPinned ? "Unpin" : "Pin"}
+                        </button>
+                      )}
+                      {mine && (
+                        <button
+                          onClick={() => removeMessage(m._id)}
+                          className="flex w-full items-center gap-2.5 px-3 py-2 text-sm hover:bg-white/5 transition"
+                          style={{ color: "#ef4444" }}
+                        >
+                          <Trash2 className="w-4 h-4" /> Delete
+                        </button>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
-            ))}
+                  )}
 
-            {typingUser && !isBlocked && (
-              <div className="flex items-center gap-2 mt-3 ml-1">
-                <div className="flex gap-1 px-4 py-3 rounded-2xl rounded-bl-sm items-center" style={{ background: "#1f2c34", boxShadow: "0 1px 3px rgba(0,0,0,0.25)" }}>
-                  {[0, 150, 300].map((delay) => (
-                    <span key={delay} className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "#8696a0", animationDelay: `${delay}ms`, animationDuration: "1.2s" }} />
-                  ))}
+                  {/* Message bubble */}
+                  <div
+                    className="px-3 py-2 rounded-lg text-[14.5px] leading-relaxed break-words"
+                    style={{
+                      background: mine ? "#1f4b3f" : "#1f2c34",
+                      color: "#e9edef",
+                      borderRadius: mine ? "18px 4px 18px 18px" : "4px 18px 18px 18px",
+                    }}
+                  >
+                    {chat.isGroup && !mine && (
+                      <div className="text-xs font-semibold mb-0.5" style={{ color: "#25d366" }}>{senderName}</div>
+                    )}
+
+                    {replyMsg && (
+                      <div
+                        className="mb-1.5 px-2 py-1 rounded text-xs border-l-2"
+                        style={{ background: "rgba(0,0,0,0.2)", borderColor: "#25d366", color: "#aebac1" }}
+                      >
+                        <div className="font-semibold text-[11px] mb-0.5" style={{ color: "#25d366" }}>
+                          {typeof replyMsg.sender === "object" ? (replyMsg.sender.fullName || replyMsg.sender.username) : ""}
+                        </div>
+                        <div className="truncate">
+                          {replyMsg.encryptedContent
+                            ? getDisplayContent(replyMsg) || "(Encrypted message)"
+                            : replyMsg.content || "Attachment"}
+                        </div>
+                      </div>
+                    )}
+
+                    {m.type === "image" && m.mediaUrl ? (
+                      <img src={m.mediaUrl} alt="attachment" className="rounded max-w-full max-h-60 object-cover mb-1" />
+                    ) : m.type === "file" && m.mediaUrl ? (
+                      <a href={m.mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 underline text-sm" style={{ color: "#53bdeb" }}>
+                        <Paperclip className="w-4 h-4 shrink-0" /> Download file
+                      </a>
+                    ) : (
+                      <span style={{ whiteSpace: "pre-wrap" }}>{displayContent}</span>
+                    )}
+
+                    {/* Reactions */}
+                    {(m.reactions ?? []).length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {m.reactions!.map((r, ri) => (
+                          <span key={ri} className="text-sm px-1.5 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }}>
+                            {r.emoji}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Timestamp + status + edited */}
+                    <div className="flex items-center justify-end gap-1 mt-1" style={{ color: "#8696a0" }}>
+                      {m.isEdited && <span className="text-[10px] italic">edited</span>}
+                      {isPinned && <Pin className="w-2.5 h-2.5" />}
+                      <span className="text-[11px]">{formatTime(m.createdAt)}</span>
+                      <StatusTick status={status} mine={mine} />
+                    </div>
+                  </div>
                 </div>
-                <span className="text-xs" style={{ color: "#8696a0" }}>{typingUser}</span>
               </div>
-            )}
+            </div>
+          );
+        })}
 
-            <div ref={bottomRef} />
-          </>
+        {typingUser && (
+          <div className="flex items-end gap-1.5 mb-0.5">
+            <div className="px-3 py-2 rounded-lg text-sm" style={{ background: "#1f2c34", color: "#8696a0" }}>
+              {typingUser} is typing…
+            </div>
+          </div>
         )}
+        <div ref={bottomRef} />
       </div>
 
-      {replyTo && (
+      {/* Edit bar — shown when the user is editing a message */}
+      {editingMessage && (
+        <form
+          onSubmit={submitEdit}
+          className="flex items-center gap-3 px-4 py-2.5 shrink-0"
+          style={{ background: "#1a2632", borderTop: "1px solid rgba(255,255,255,0.06)" }}
+        >
+          <Pencil className="w-4 h-4 shrink-0" style={{ color: "#25d366" }} />
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-medium mb-0.5" style={{ color: "#25d366" }}>Edit message</div>
+            <input
+              ref={editInputRef}
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitEdit(); }
+                if (e.key === "Escape") cancelEdit();
+              }}
+              className="w-full bg-transparent text-[14px] outline-none"
+              style={{ color: "#e9edef" }}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={cancelEdit}
+            className="p-1 rounded-full hover:bg-white/10 transition"
+            style={{ color: "#8696a0" }}
+          >
+            <X className="w-4 h-4" />
+          </button>
+          <button
+            type="submit"
+            disabled={editSaving || !editText.trim()}
+            className="p-1.5 rounded-full hover:bg-white/10 transition disabled:opacity-50"
+            style={{ color: "#25d366" }}
+          >
+            {editSaving ? <Spinner className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+          </button>
+        </form>
+      )}
+
+      {replyTo && !editingMessage && (
         <div className="flex items-center gap-3 px-4 py-2.5 shrink-0" style={{ background: "#1a2632", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
           <Reply className="w-4 h-4 shrink-0" style={{ color: "#25d366" }} />
           <div className="flex-1 min-w-0">
             <div className="text-xs font-medium" style={{ color: "#25d366" }}>
               Replying to {typeof replyTo.sender === "object" ? replyTo.sender.fullName || replyTo.sender.username : ""}
             </div>
-            <div className="text-sm truncate" style={{ color: "#8696a0" }}>{replyTo.content || "Attachment"}</div>
+            <div className="text-sm truncate" style={{ color: "#8696a0" }}>
+              {replyTo.encryptedContent
+                ? (getDisplayContent(replyTo) || "(Encrypted message)")
+                : replyTo.content || "Attachment"}
+            </div>
           </div>
           <button onClick={() => setReplyTo(null)} className="p-1 rounded-full hover:bg-white/10 transition" style={{ color: "#8696a0" }}>
             <X className="w-4 h-4" />
@@ -882,7 +1157,7 @@ export default function ChatRoomPage() {
         </div>
       )}
 
-      {(chat?.isGroup || (!blockedByMe && !blockedByThem && (isFriend || other?.isPrivate === false))) && (
+      {(chat?.isGroup || (!blockedByMe && !blockedByThem && (isFriend || other?.isPrivate === false))) && !editingMessage && (
         <form
           onSubmit={send}
           className="flex items-end gap-2 px-2 py-2 shrink-0"
