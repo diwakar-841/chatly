@@ -788,23 +788,23 @@ export default function ChatRoomPage() {
           {!chat.isGroup && !isBlocked && (isFriend || other?.isPrivate === false) && (
             <>
               <button
-                onClick={() => other && startCall(other._id, other.fullName || other.username, other.avatar, false)}
-                disabled={callStatus !== "idle"}
-                className="p-2 rounded-full hover:bg-white/10 transition disabled:opacity-40"
-                style={{ color: "#aebac1" }}
-                title="Voice call"
-              >
-                <Phone className="w-5 h-5" />
-              </button>
+  onClick={() => other && startCall(other, chat._id, "audio")}
+  disabled={callStatus !== "idle"}
+  className="p-2 rounded-full hover:bg-white/10 transition disabled:opacity-40"
+  style={{ color: "#aebac1" }}
+  title="Voice call"
+>
+  <Phone className="w-5 h-5" />
+</button>
               <button
-                onClick={() => other && startCall(other._id, other.fullName || other.username, other.avatar, true)}
-                disabled={callStatus !== "idle"}
-                className="p-2 rounded-full hover:bg-white/10 transition disabled:opacity-40"
-                style={{ color: "#aebac1" }}
-                title="Video call"
-              >
-                <Video className="w-5 h-5" />
-              </button>
+  onClick={() => other && startCall(other, chat._id, "video")}
+  disabled={callStatus !== "idle"}
+  className="p-2 rounded-full hover:bg-white/10 transition disabled:opacity-40"
+  style={{ color: "#aebac1" }}
+  title="Video call"
+>
+  <Video className="w-5 h-5" />
+</button>
             </>
           )}
           <div className="relative">
