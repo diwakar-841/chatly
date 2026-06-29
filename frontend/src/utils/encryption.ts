@@ -1,28 +1,10 @@
 import nacl from 'tweetnacl';
 import * as util from 'tweetnacl-util';
 
-/**
- * FIX: Key storage is now scoped per user-ID.
- *
- * The original implementation used a single shared localStorage key
- * (`chatly-e2e-keys`) for ALL users on the same browser/device.  When two
- * accounts are tested in the same browser (e.g. Sanjay then Manoj), the
- * second user's `getOrCreateKeyPair()` call would find the first user's key
- * already in storage and return IT.  Manoj would then register Sanjay's
- * public key as his own, making both parties derive the same-but-wrong
- * shared secret and failing to decrypt every message.
- *
- * Scoping by userId guarantees each account gets its own stable keypair
- * regardless of how many accounts share the same browser.
- */
+const LEGACY_KEY = 'chatly-e2e-keys';
 const keyStorageKey = (userId: string) => `chatly-e2e-keys-${userId}`;
 const registeredKeyStorageKey = (userId: string) => `chatly-e2e-registered-key-${userId}`;
 
-/**
- * Generates a fresh NaCl Curve25519 keypair and returns both keys as
- * base64-encoded strings. The secret key must remain on-device; only the
- * public key is shared with the server.
- */
 export const generateKeyPair = (): { publicKey: string; secretKey: string } => {
   const keyPair = nacl.box.keyPair();
   return {
@@ -31,11 +13,6 @@ export const generateKeyPair = (): { publicKey: string; secretKey: string } => {
   };
 };
 
-/**
- * Derives a symmetric shared secret from the other party's public key and
- * our own secret key using the NaCl box algorithm (X25519 + XSalsa20-Poly1305).
- * Both sides derive the same secret independently — no exchange needed.
- */
 export const deriveSharedSecret = (
   pubKey: string,
   secretKey: string
@@ -45,11 +22,6 @@ export const deriveSharedSecret = (
   return nacl.box.before(pk, sk);
 };
 
-/**
- * Encrypts a plaintext string with NaCl secretbox using a random 24-byte nonce.
- * Returns both the ciphertext and nonce as base64 strings; both must be stored
- * alongside the message so the recipient can decrypt it.
- */
 export const encryptForSend = (
   plaintext: string,
   sharedSecret: Uint8Array
@@ -66,12 +38,6 @@ export const encryptForSend = (
   };
 };
 
-/**
- * Decrypts a ciphertext that was encrypted with `encryptForSend`.
- * Returns the plaintext string on success, or null on failure (wrong key,
- * corrupted data, etc.). Callers should check for null and fall back gracefully
- * rather than surfacing an error string as message content.
- */
 export const decryptMessage = (
   encrypted: string,
   nonce: string,
@@ -91,33 +57,44 @@ export const decryptMessage = (
 };
 
 /**
- * Returns the stored E2E keypair for this userId from localStorage, or
- * generates and stores a fresh one if none exists.
+ * Returns the stored E2E keypair for this userId from localStorage.
  *
- * FIX: scoped to userId so multiple accounts on the same browser each get
- * their own independent keypair.
+ * Migration: if no user-scoped key exists yet, promotes the old global
+ * `chatly-e2e-keys` entry so that existing users keep their keypair after
+ * a code update and old messages remain decryptable.
  */
 export const getOrCreateKeyPair = (userId: string): { publicKey: string; secretKey: string } => {
+  const scopedKey = keyStorageKey(userId);
+
+  // 1. Try the current user-scoped key first.
   try {
-    const stored = localStorage.getItem(keyStorageKey(userId));
+    const stored = localStorage.getItem(scopedKey);
     if (stored) {
       const parsed = JSON.parse(stored) as { publicKey: string; secretKey: string };
       if (parsed.publicKey && parsed.secretKey) return parsed;
     }
-  } catch {
-    // Fall through and generate a new pair if storage is unavailable or corrupt.
-  }
+  } catch { /* fall through */ }
+
+  // 2. Migrate from the legacy unscoped key so existing sessions keep their keypair.
+  try {
+    const legacy = localStorage.getItem(LEGACY_KEY);
+    if (legacy) {
+      const parsed = JSON.parse(legacy) as { publicKey: string; secretKey: string };
+      if (parsed.publicKey && parsed.secretKey) {
+        localStorage.setItem(scopedKey, legacy);
+        return parsed;
+      }
+    }
+  } catch { /* fall through */ }
+
+  // 3. No usable key found — generate a fresh one.
   const kp = generateKeyPair();
-  localStorage.setItem(keyStorageKey(userId), JSON.stringify(kp));
+  try {
+    localStorage.setItem(scopedKey, JSON.stringify(kp));
+  } catch { /* ignore quota errors */ }
   return kp;
 };
 
-/**
- * Returns true if this exact public key has already been successfully
- * registered with the server for this userId in this browser.
- *
- * FIX: scoped to userId.
- */
 export const isKeyRegistered = (userId: string, publicKey: string): boolean => {
   try {
     return localStorage.getItem(registeredKeyStorageKey(userId)) === publicKey;
@@ -126,16 +103,8 @@ export const isKeyRegistered = (userId: string, publicKey: string): boolean => {
   }
 };
 
-/**
- * Marks the given public key as having been registered with the server for userId.
- * Call this only after setPublicKey succeeds.
- *
- * FIX: scoped to userId.
- */
 export const markKeyRegistered = (userId: string, publicKey: string): void => {
   try {
     localStorage.setItem(registeredKeyStorageKey(userId), publicKey);
-  } catch {
-    // ignore
-  }
+  } catch { /* ignore */ }
 };
