@@ -99,6 +99,11 @@ export default function ChatRoomPage() {
   const myKeyPairRef = useRef<{ publicKey: string; secretKey: string } | null>(null);
   /** Flips to true once the shared secret is derived, causing getDisplayContent to re-evaluate. */
   const [e2eReady, setE2EReady] = useState(false);
+  /**
+   * FIX (Bug 1): Becomes true only after a rederivation attempt also fails.
+   * Before that point messages show as blank (loading) not as "🔒 Encrypted message".
+   */
+  const [rederiveFailed, setRederiveFailed] = useState(false);
 
   /** Resolves the other participant for 1-to-1 chats. */
   const other = useMemo(() => {
@@ -135,6 +140,7 @@ export default function ChatRoomPage() {
     }
 
     setE2EReady(false);
+    setRederiveFailed(false);
     sharedSecretRef.current = null;
 
     // FIX: pass me._id so each user gets their own isolated keypair in localStorage.
@@ -180,40 +186,62 @@ export default function ChatRoomPage() {
    * to a key mismatch. Show empty string (loading state) when the secret is not
    * ready yet, so the message isn't permanently marked as undecryptable.
    */
+  /**
+   * FIX (Bug 1): Returns the displayable text content for a message.
+   *
+   * State machine for encrypted messages:
+   *  - sharedSecret not ready → "" (keys loading, don't alarm the user)
+   *  - sharedSecret ready, decryption succeeds → plaintext
+   *  - sharedSecret ready, decryption fails, rederivation not yet tried → ""
+   *    + kick off a single background rederivation attempt
+   *  - rederivation succeeds → e2eReady toggled → re-render → plaintext
+   *  - rederivation fails (rederiveFailed=true) → "🔒 Encrypted message"
+   *
+   * This ensures users never see the lock icon for messages that are about
+   * to be decrypted successfully after a brief key-sync delay.
+   */
   const getDisplayContent = useCallback((m: Message): string => {
     if (m.encryptedContent && m.nonce) {
       if (sharedSecretRef.current) {
         const decrypted = decryptMessage(m.encryptedContent, m.nonce, sharedSecretRef.current);
         if (decrypted !== null) return decrypted;
 
-        // Decryption failed — the other user may have rotated their key since we
-        // last opened this chat. Schedule a single background re-derivation; if
-        // the new secret works, we flip e2eReady to trigger a re-render.
-        if (!rederivingRef.current && other) {
+        // Decryption failed — try re-deriving with a freshly fetched public key.
+        // Only start one rederivation at a time, and only if we haven't already
+        // confirmed that rederivation won't help (rederiveFailed).
+        if (!rederivingRef.current && !rederiveFailed && other) {
           rederivingRef.current = true;
           authApi.getPublicKey(other._id)
             .then(({ publicKey: freshPub }) => {
-              if (!freshPub || !myKeyPairRef.current) return;
+              if (!freshPub || !myKeyPairRef.current) {
+                setRederiveFailed(true);
+                return;
+              }
               const newSecret = deriveSharedSecret(freshPub, myKeyPairRef.current.secretKey);
-              // Only switch to the new secret if it actually decrypts this message.
               const testDecrypt = decryptMessage(m.encryptedContent!, m.nonce!, newSecret);
               if (testDecrypt !== null) {
                 sharedSecretRef.current = newSecret;
-                setE2EReady((prev) => !prev); // toggle to force useCallback refresh
+                setE2EReady((prev) => !prev); // toggle to force callback refresh
+              } else {
+                // Fresh key also can't decrypt — genuine mismatch; show lock icon.
+                setRederiveFailed(true);
               }
             })
-            .catch(() => {})
+            .catch(() => { setRederiveFailed(true); })
             .finally(() => { rederivingRef.current = false; });
         }
 
-        return "🔒 Encrypted message";
+        // Show lock only after rederivation has confirmed it can't help.
+        // While the attempt is in flight (or hasn't started), return "" so
+        // the bubble stays blank rather than showing a confusing error.
+        return rederiveFailed ? "🔒 Encrypted message" : "";
       }
-      // Shared secret not yet derived — show empty while loading, not a permanent lock.
+      // Shared secret not yet derived — show empty while loading.
       return "";
     }
     return m.content ?? "";
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [e2eReady, other]);
+  }, [e2eReady, other, rederiveFailed]);
 
   /** Fetches a page of messages, optionally prepending them for infinite-scroll. */
   const loadMessages = useCallback(
@@ -760,23 +788,23 @@ export default function ChatRoomPage() {
           {!chat.isGroup && !isBlocked && (isFriend || other?.isPrivate === false) && (
             <>
               <button
-  onClick={() => other && startCall(other, chatId, "audio")}
-  disabled={callStatus !== "idle"}
-  className="p-2 rounded-full hover:bg-white/10 transition disabled:opacity-40"
-  style={{ color: "#aebac1" }}
-  title="Voice call"
->
-  <Phone className="w-5 h-5" />
-</button>
+                onClick={() => other && startCall(other._id, other.fullName || other.username, other.avatar, false)}
+                disabled={callStatus !== "idle"}
+                className="p-2 rounded-full hover:bg-white/10 transition disabled:opacity-40"
+                style={{ color: "#aebac1" }}
+                title="Voice call"
+              >
+                <Phone className="w-5 h-5" />
+              </button>
               <button
-  onClick={() => other && startCall(other, chatId, "video")}
-  disabled={callStatus !== "idle"}
-  className="p-2 rounded-full hover:bg-white/10 transition disabled:opacity-40"
-  style={{ color: "#aebac1" }}
-  title="Video call"
->
-  <Video className="w-5 h-5" />
-</button>
+                onClick={() => other && startCall(other._id, other.fullName || other.username, other.avatar, true)}
+                disabled={callStatus !== "idle"}
+                className="p-2 rounded-full hover:bg-white/10 transition disabled:opacity-40"
+                style={{ color: "#aebac1" }}
+                title="Video call"
+              >
+                <Video className="w-5 h-5" />
+              </button>
             </>
           )}
           <div className="relative">
