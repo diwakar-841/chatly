@@ -69,7 +69,15 @@ export interface Chat {
   creator?: string;
   joinRequests?: string[];
   pendingInvites?: string[];
-  lastMessage?: Pick<Message, "_id" | "content" | "type" | "createdAt"> | null;
+  lastMessage?: Pick<
+  Message,
+  "_id" |
+  "content" |
+  "encryptedContent" |
+  "nonce" |
+  "type" |
+  "createdAt"
+> | null;
   pinnedMessages?: string[];
   unreadCount?: number;
   updatedAt: string;
