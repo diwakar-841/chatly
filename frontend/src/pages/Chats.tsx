@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Search, MessageCircle, UserPlus, Loader2, X, Users, Globe, Lock } from "lucide-react";
-import { chatApi, profileApi, requestApi, blockApi } from "@/api/endpoints";
+import { chatApi, profileApi, requestApi, blockApi, authApi } from "@/api/endpoints";
 import type { Chat, User, GroupResult } from "@/types";
 import { Avatar } from "@/components/Avatar";
 import { EmptyState } from "@/components/EmptyState";
@@ -10,6 +10,7 @@ import { useSocket } from "@/context/SocketContext";
 import { formatChatTime, cn } from "@/lib/utils";
 import { apiError } from "@/api/client";
 import toast from "react-hot-toast";
+import { getOrCreateKeyPair, deriveSharedSecret, decryptMessage } from "@/utils/encryption";
 
 type FilterTab = "all" | "unread" | "groups" | "blocked";
 
@@ -34,6 +35,20 @@ export default function ChatsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [groupActions, setGroupActions] = useState<Record<string, "joined" | "requested">>({});
 
+  /**
+   * FIX (Bug 2): Stores decrypted last-message previews keyed by chat ID.
+   * The chat list cannot rely on plaintext `content` for E2E DMs — the server only
+   * stores ciphertext. We derive the per-chat shared secret once and decrypt the
+   * preview in the background so users see the actual message, not "🔒 Encrypted message".
+   */
+  const [decryptedPreviews, setDecryptedPreviews] = useState<Map<string, string>>(new Map());
+
+  /**
+   * Cache of derived shared secrets keyed by the OTHER user's ID so we don't
+   * re-fetch their public key every time a socket message arrives.
+   */
+  const sharedSecretsCache = useRef<Map<string, Uint8Array>>(new Map());
+
   /** Loads the chat list and blocked-user IDs on each navigation to this page. */
   useEffect(() => {
     setLoading(true);
@@ -48,10 +63,64 @@ export default function ChatsPage() {
   }, [location.key]);
 
   /**
+   * FIX (Bug 2): After chats load, asynchronously decrypt the last-message preview
+   * for every DM chat that has an encrypted last message.
+   *
+   * Steps per chat:
+   *  1. Get (or create) our local keypair.
+   *  2. Fetch the other user's public key (or reuse the cached shared secret).
+   *  3. Derive the shared secret.
+   *  4. Decrypt `lastMessage.encryptedContent` and store the result.
+   */
+  useEffect(() => {
+    if (!me?._id || chats.length === 0) return;
+
+    const myKp = getOrCreateKeyPair(me._id);
+
+    const encryptedDMs = chats.filter(
+      (c) => !c.isGroup && c.lastMessage?.encryptedContent && c.lastMessage?.nonce,
+    );
+    if (encryptedDMs.length === 0) return;
+
+    encryptedDMs.forEach(async (c) => {
+      const other = c.members.find((m) => m._id !== me._id);
+      if (!other) return;
+
+      try {
+        let secret = sharedSecretsCache.current.get(other._id);
+
+        if (!secret) {
+          const { publicKey } = await authApi.getPublicKey(other._id);
+          if (!publicKey) return;
+          secret = deriveSharedSecret(publicKey, myKp.secretKey);
+          sharedSecretsCache.current.set(other._id, secret);
+        }
+
+        const decrypted = decryptMessage(
+          c.lastMessage!.encryptedContent!,
+          c.lastMessage!.nonce!,
+          secret,
+        );
+
+        if (decrypted !== null) {
+          setDecryptedPreviews((prev) => {
+            const next = new Map(prev);
+            next.set(c._id, decrypted);
+            return next;
+          });
+        }
+      } catch {
+        // Decryption failure is non-fatal; preview will show empty.
+      }
+    });
+  }, [chats, me?._id]);
+
+  /**
    * Keeps the chat list in sync with real-time socket events (new messages, read receipts, new chats).
    *
-   * FIX: Extended the `message:new` socket payload type to include `encryptedContent` and `nonce`
-   * so we can correctly identify encrypted messages and show the right preview text.
+   * FIX (Bug 2): When an encrypted message arrives via socket, decrypt it immediately
+   * using the cached shared secret (or by fetching the key) so the preview updates
+   * to the real content rather than the lock placeholder.
    */
   useEffect(() => {
     if (!socket) return;
@@ -75,6 +144,47 @@ export default function ChatsPage() {
         };
         return [updated, ...prev.filter((_, i) => i !== idx)];
       });
+
+      // Decrypt the incoming encrypted message for the preview.
+      if (msg.encryptedContent && msg.nonce && me?._id) {
+        setChats((currentChats) => {
+          const chat = currentChats.find((c) => c._id === msg.chat);
+          if (!chat || chat.isGroup) return currentChats;
+
+          const other = chat.members.find((m) => m._id !== me._id);
+          if (!other) return currentChats;
+
+          const myKp = getOrCreateKeyPair(me._id);
+          const cached = sharedSecretsCache.current.get(other._id);
+
+          const tryDecrypt = (secret: Uint8Array) => {
+            const decrypted = decryptMessage(msg.encryptedContent!, msg.nonce!, secret);
+            if (decrypted !== null) {
+              setDecryptedPreviews((prev) => {
+                const next = new Map(prev);
+                next.set(msg.chat, decrypted);
+                return next;
+              });
+            }
+          };
+
+          if (cached) {
+            tryDecrypt(cached);
+          } else {
+            authApi
+              .getPublicKey(other._id)
+              .then(({ publicKey }) => {
+                if (!publicKey) return;
+                const secret = deriveSharedSecret(publicKey, myKp.secretKey);
+                sharedSecretsCache.current.set(other._id, secret);
+                tryDecrypt(secret);
+              })
+              .catch(() => {});
+          }
+
+          return currentChats;
+        });
+      }
     };
 
     const onRead = ({ chatId }: { chatId: string }) => {
@@ -94,7 +204,7 @@ export default function ChatsPage() {
       socket.off("chat:read", onRead);
       socket.off("chat:new", onNewChat);
     };
-  }, [socket]);
+  }, [socket, me?._id]);
 
   /** Debounced dual search — runs user and group searches independently in parallel. */
   useEffect(() => {
@@ -218,19 +328,25 @@ export default function ChatsPage() {
   ];
 
   /**
-   * Returns the preview text for the last message in a chat row.
+   * FIX (Bug 2): Returns the preview text for the last message in a chat row.
    *
-   * FIX: Encrypted DM messages have content='' on the server (only encryptedContent is stored).
-   * The previous code fell through to "No messages yet" for those. Now we detect encrypted
-   * messages and show "🔒 Encrypted message" as the preview so the list looks correct.
+   * For encrypted DMs we now look up the decrypted preview that was computed
+   * asynchronously in the background. If decryption hasn't finished yet (or
+   * failed silently) we return an empty string — the row looks clean and the
+   * user never sees "🔒 Encrypted message" as a permanent state.
+   *
+   * @param chatId  - used to look up the decrypted preview map.
+   * @param lastMsg - the raw lastMessage object from the Chat record.
    */
-  function getLastMessagePreview(lastMsg: Chat["lastMessage"] | undefined | null): string {
+  function getLastMessagePreview(
+    chatId: string,
+    lastMsg: Chat["lastMessage"] | undefined | null,
+  ): string {
     if (!lastMsg) return "No messages yet";
 
-    // Encrypted DM message — content is intentionally empty on the server.
-    // The `encryptedContent` field signals it's an E2E message.
-    if ((lastMsg as { encryptedContent?: string }).encryptedContent) {
-      return "🔒 Encrypted message";
+    if (lastMsg.encryptedContent) {
+      // Return the decrypted text if available, otherwise empty while loading.
+      return decryptedPreviews.get(chatId) ?? "";
     }
 
     if (lastMsg.content) return lastMsg.content;
@@ -248,7 +364,7 @@ export default function ChatsPage() {
       blockedIds !== null &&
       !blockedIds.has(other._id) &&
       onlineUsers.has(other._id);
-    const lastText = getLastMessagePreview(c.lastMessage);
+    const lastText = getLastMessagePreview(c._id, c.lastMessage);
     const hasUnread = (c.unreadCount || 0) > 0;
     const avatarPath = c.isGroup ? `/chats/${c._id}/info` : other ? `/profile/${other._id}` : null;
 
