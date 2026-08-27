@@ -3,11 +3,12 @@ import logger from '../utils/logger.js';
 
 /** Sends a branded password-reset email containing a time-limited link. */
 export const sendPasswordReset = async (to: string, resetUrl: string): Promise<void> => {
-  await transporter.sendMail({
-    from: process.env.EMAIL_FROM,
-    to,
-    subject: 'Password Reset Request – Chatly',
-    html: `
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to,
+      subject: 'Password Reset Request – Chatly',
+      html: `
       <div style="font-family:sans-serif;max-width:480px;margin:auto">
         <h2>Password Reset</h2>
         <p>You requested a password reset. Click the button below to reset your password:</p>
@@ -15,17 +16,24 @@ export const sendPasswordReset = async (to: string, resetUrl: string): Promise<v
         <p style="margin-top:16px;color:#666;font-size:13px">This link expires in 30 minutes.<br>If you did not request this, ignore this email.</p>
       </div>
     `,
-  });
-  logger.info(`[Mail] Password reset email sent to ${to}`);
+    });
+    logger.info(`[Mail] Password reset email sent to ${to}`);
+  } catch (err) {
+    logger.error('[Mail] Failed to send password reset email', err);
+    // Throw an operational error with a friendly message — the central error
+    // handler will map operational errors to their message for clients.
+    throw { statusCode: 500, isOperational: true, message: 'Failed to send email. Please try again later.' };
+  }
 };
 
 /** Sends a branded email verification link with a 24-hour expiry. */
 export const sendVerificationEmail = async (to: string, verifyUrl: string): Promise<void> => {
-  await transporter.sendMail({
-    from: process.env.EMAIL_FROM,
-    to,
-    subject: 'Verify your email – Chatly',
-    html: `
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to,
+      subject: 'Verify your email – Chatly',
+      html: `
       <div style="font-family:sans-serif;max-width:480px;margin:auto">
         <h2>Email Verification</h2>
         <p>Thanks for signing up! Please verify your email address:</p>
@@ -33,6 +41,10 @@ export const sendVerificationEmail = async (to: string, verifyUrl: string): Prom
         <p style="margin-top:16px;color:#666;font-size:13px">This link expires in 24 hours.<br>If you did not create an account, ignore this email.</p>
       </div>
     `,
-  });
-  logger.info(`[Mail] Verification email sent to ${to}`);
+    });
+    logger.info(`[Mail] Verification email sent to ${to}`);
+  } catch (err) {
+    logger.error('[Mail] Failed to send verification email', err);
+    throw { statusCode: 500, isOperational: true, message: 'Failed to send email. Please try again later.' };
+  }
 };
