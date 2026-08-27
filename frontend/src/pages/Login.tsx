@@ -1,4 +1,5 @@
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { z } from "zod";
@@ -11,7 +12,7 @@ import { Spinner } from "@/components/Spinner";
 
 const schema = z.object({
   email: z.string().email("Invalid email"),
-  password: z.string().min(8, "Min 8 characters"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
 });
 type FormData = z.infer<typeof schema>;
 
@@ -21,13 +22,13 @@ export default function LoginPage() {
   const setAuth = useAuth((s) => s.setAuth);
   const [show, setShow] = useState(false);
   const [focused, setFocused] = useState<string | null>(null);
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>();
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
+    resolver: zodResolver(schema),
+  });
 
   const onSubmit = async (data: FormData) => {
-    const parsed = schema.safeParse(data);
-    if (!parsed.success) { toast.error(parsed.error.issues[0].message); return; }
     try {
-      const res = await authApi.login(parsed.data);
+      const res = await authApi.login(data);
       setAuth(res);
       toast.success("Welcome back!");
       navigate("/chats");
@@ -122,38 +123,4 @@ export default function LoginPage() {
               <label style={{ fontSize: "12px", fontWeight: 600, color: "#8696a0", letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: "8px" }}>Password</label>
               <div style={{ position: "relative" }}>
                 <span style={iconStyle("password")}><Lock size={16} /></span>
-                <input type={show ? "text" : "password"} placeholder="••••••••" style={{ ...inputStyle("password"), paddingLeft: "42px", paddingRight: "46px" }} onFocus={() => setFocused("password")} {...register("password")} />
-                <button type="button" onClick={() => setShow(!show)} style={{ position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#8696a0", padding: 0, display: "flex" }}>
-                  {show ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-              {errors.password && <p style={{ color: "#ef4444", fontSize: "12px", marginTop: "5px" }}>{errors.password.message}</p>}
-              <div style={{ textAlign: "right", marginTop: "6px" }}>
-                <Link to="/forgot-password" style={{ fontSize: "12px", color: "#00a884", textDecoration: "none", fontWeight: 500 }}>Forgot password?</Link>
-              </div>
-            </div>
-            <button type="submit" disabled={isSubmitting}
-              style={{ width: "100%", background: "#00a884", border: "none", borderRadius: "12px", padding: "14px", fontSize: "14px", fontWeight: 700, color: "#0b141a", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px" }}
-              onMouseEnter={(e) => { if (!isSubmitting) (e.currentTarget as HTMLButtonElement).style.background = "#00c49a"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#00a884"; }}
-            >
-              {isSubmitting ? <Spinner /> : <><span>Sign in</span><ArrowRight size={16} /></>}
-            </button>
-          </form>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", margin: "1.5rem 0" }}>
-            <div style={{ flex: 1, height: "1px", background: "#1f2c33" }} />
-            <span style={{ fontSize: "12px", color: "#556b7a" }}>New to Chatly?</span>
-            <div style={{ flex: 1, height: "1px", background: "#1f2c33" }} />
-          </div>
-          <Link to="/register"
-            style={{ display: "block", textAlign: "center", border: "1.5px solid #2a3942", borderRadius: "12px", padding: "13px", fontSize: "14px", fontWeight: 600, color: "#e9edef", textDecoration: "none" }}
-            onMouseEnter={(e) => { const el = e.currentTarget as HTMLAnchorElement; el.style.borderColor = "#3b4a54"; el.style.background = "#111b21"; }}
-            onMouseLeave={(e) => { const el = e.currentTarget as HTMLAnchorElement; el.style.borderColor = "#2a3942"; el.style.background = "transparent"; }}
-          >
-            Create an account
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
+                <input type={show ? "text" : "password"} placeholder="••••••••" style={{ ...inputStyle("password"), paddingLeft: "42px", paddingRight: "46px" }} onFocus={() => set[...]
