@@ -52,13 +52,42 @@ api.interceptors.response.use(
   }
 );
 
-/** Extracts the most specific error message from an Axios error response. */
+/**
+ * Extracts the most specific error message from an Axios error response and
+ * maps technical or internal messages to friendly, user-facing text.
+ */
 export function apiError(e: unknown, fallback = "Something went wrong"): string {
-  const err = e as AxiosError<{ message?: string; errors?: { msg: string }[] }>;
-  return (
-    err?.response?.data?.errors?.[0]?.msg ||
-    err?.response?.data?.message ||
-    err?.message ||
-    fallback
-  );
+  const err = e as AxiosError<{ message?: string; errors?: { msg: string }[] }> | undefined;
+
+  // Prefer structured validation messages from the server (express-validator style)
+  const validationMsg = err?.response?.data?.errors?.[0]?.msg;
+  if (validationMsg) return validationMsg;
+
+  // If server provided a user-friendly message, map common technical cases to safe text
+  const serverMsg = err?.response?.data?.message;
+  if (serverMsg) {
+    if (/timeout|timed out/i.test(serverMsg) || err?.code === 'ECONNABORTED')
+      return 'The request timed out. Please check your connection and try again.';
+    if (/network error|ENOTFOUND|ECONNREFUSED|ECONNRESET/i.test(serverMsg))
+      return 'Unable to reach the server. Please check your internet connection.';
+    if (err?.response?.status && err.response.status >= 500)
+      return 'Server error. Please try again later.';
+
+    // Otherwise return the server message (it's assumed to be user-facing)
+    return String(serverMsg);
+  }
+
+  // Network / timeout errors surfaced by Axios
+  if ((err as any)?.code === 'ECONNABORTED' || /timeout/i.test((err as any)?.message || ''))
+    return 'The request timed out. Please check your connection and try again.';
+  if (/Network Error/i.test((err as any)?.message || ''))
+    return 'Unable to reach the server. Please check your internet connection.';
+
+  // Fall back to the Axios error message if short and non-technical, otherwise use fallback
+  const raw = (err as any)?.message;
+  if (raw && typeof raw === 'string' && raw.length > 0 && raw.length < 120) {
+    return raw;
+  }
+
+  return fallback;
 }
