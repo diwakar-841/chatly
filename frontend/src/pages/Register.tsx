@@ -1,4 +1,5 @@
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { z } from "zod";
@@ -13,7 +14,7 @@ const schema = z.object({
   fullName: z.string().min(1, "Full name required").max(60),
   username: z.string().min(3, "Min 3 characters").max(30).regex(/^[a-zA-Z0-9_]+$/, "Letters, numbers, underscores only"),
   email: z.string().email("Invalid email"),
-  password: z.string().min(8, "Min 8 characters"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
 });
 type FormData = z.infer<typeof schema>;
 
@@ -38,19 +39,21 @@ export default function RegisterPage() {
   const [show, setShow] = useState(false);
   const [focused, setFocused] = useState<string | null>(null);
   const [password, setPassword] = useState("");
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>();
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
+    resolver: zodResolver(schema),
+  });
 
   const strength = getPasswordStrength(password);
 
   const onSubmit = async (data: FormData) => {
-    const parsed = schema.safeParse(data);
-    if (!parsed.success) { toast.error(parsed.error.issues[0].message); return; }
     try {
-      const res = await authApi.register(parsed.data);
+      const res = await authApi.register(data);
       setAuth(res);
       toast.success("Account created! Check your email to verify.");
       navigate("/chats");
-    } catch (e) { toast.error(apiError(e, "Registration failed")); }
+    } catch (e) {
+      toast.error(apiError(e, "Registration failed"));
+    }
   };
 
   /** Generates the inline style for an input field, highlighting it when focused. */
@@ -81,7 +84,7 @@ export default function RegisterPage() {
         <div style={{ position: "absolute", bottom: "80px", left: "-60px", width: "260px", height: "260px", borderRadius: "50%", background: "radial-gradient(circle, rgba(0,168,132,0.12) 0%, transparent 70%)" }} />
         <div style={{ position: "absolute", inset: 0, opacity: 0.06, backgroundImage: "radial-gradient(circle, #00a884 1px, transparent 1px)", backgroundSize: "28px 28px" }} />
         <div style={{ position: "relative", zIndex: 1 }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: "10px", background: "rgba(0,168,132,0.12)", border: "1px solid rgba(0,168,132,0.25)", borderRadius: "12px", padding: "8px 16px" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "10px", background: "rgba(0,168,132,0.12)", border: "1px solid rgba(0,168,132,0.25)", borderRadius: "12px", padding: "8px 12px" }}>
             <MessageCircle size={20} color="#00a884" />
             <span style={{ fontWeight: 700, fontSize: "15px", color: "#00a884", letterSpacing: "-0.02em" }}>Chatly</span>
           </div>
@@ -100,7 +103,7 @@ export default function RegisterPage() {
               { step: "03", text: "Start chatting right away" },
             ].map(({ step, text }) => (
               <div key={step} style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-                <div style={{ width: "28px", height: "28px", borderRadius: "8px", flexShrink: 0, background: "rgba(0,168,132,0.15)", border: "1px solid rgba(0,168,132,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: 700, color: "#00a884", letterSpacing: "0.04em" }}>
+                <div style={{ width: "28px", height: "28px", borderRadius: "8px", flexShrink: 0, background: "rgba(0,168,132,0.15)", border: "1px solid rgba(0,168,132,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: "#00a884" }}>
                   {step}
                 </div>
                 <span style={{ fontSize: "13px", color: "#adbac7" }}>{text}</span>
@@ -174,7 +177,7 @@ export default function RegisterPage() {
               )}
             </div>
             <button type="submit" disabled={isSubmitting}
-              style={{ width: "100%", background: "#00a884", border: "none", borderRadius: "12px", padding: "14px", fontSize: "14px", fontWeight: 700, color: "#0b141a", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", marginTop: "4px", opacity: isSubmitting ? 0.7 : 1, transition: "background 0.2s" }}
+              style={{ width: "100%", background: "#00a884", border: "none", borderRadius: "12px", padding: "14px", fontSize: "14px", fontWeight: 700, color: "#0b141a", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px" }}
               onMouseEnter={(e) => { if (!isSubmitting) (e.currentTarget as HTMLButtonElement).style.background = "#00c49a"; }}
               onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#00a884"; }}
             >
@@ -192,7 +195,7 @@ export default function RegisterPage() {
             <div style={{ flex: 1, height: "1px", background: "#1f2c33" }} />
           </div>
           <Link to="/login"
-            style={{ display: "block", textAlign: "center", border: "1.5px solid #2a3942", borderRadius: "12px", padding: "13px", fontSize: "14px", fontWeight: 600, color: "#e9edef", textDecoration: "none", transition: "border-color 0.2s, background 0.2s" }}
+            style={{ display: "block", textAlign: "center", border: "1.5px solid #2a3942", borderRadius: "12px", padding: "13px", fontSize: "14px", fontWeight: 600, color: "#e9edef", textDecoration: "none" }}
             onMouseEnter={(e) => { const el = e.currentTarget as HTMLAnchorElement; el.style.borderColor = "#3b4a54"; el.style.background = "#111b21"; }}
             onMouseLeave={(e) => { const el = e.currentTarget as HTMLAnchorElement; el.style.borderColor = "#2a3942"; el.style.background = "transparent"; }}
           >
