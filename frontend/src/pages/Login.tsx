@@ -31,7 +31,15 @@ export default function LoginPage() {
       setAuth(res);
       toast.success("Welcome back!");
       navigate("/chats");
-    } catch (e) { toast.error(apiError(e, "Login failed")); }
+    } catch (e) {
+      // Show a clear, user-friendly message for authentication failures.
+      const status = (e as any)?.response?.status;
+      if (status === 401) {
+        toast.error("Wrong email or password");
+      } else {
+        toast.error(apiError(e, "Login failed"));
+      }
+    }
   };
 
   /** Generates the inline style for an input field, highlighting it when focused. */
@@ -62,7 +70,7 @@ export default function LoginPage() {
         <div style={{ position: "absolute", bottom: "80px", left: "-60px", width: "260px", height: "260px", borderRadius: "50%", background: "radial-gradient(circle, rgba(0,168,132,0.12) 0%, transparent 70%)" }} />
         <div style={{ position: "absolute", inset: 0, opacity: 0.06, backgroundImage: "radial-gradient(circle, #00a884 1px, transparent 1px)", backgroundSize: "28px 28px" }} />
         <div style={{ position: "relative", zIndex: 1 }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: "10px", background: "rgba(0,168,132,0.12)", border: "1px solid rgba(0,168,132,0.25)", borderRadius: "12px", padding: "8px 16px" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "10px", background: "rgba(0,168,132,0.12)", border: "1px solid rgba(0,168,132,0.25)", borderRadius: "12px", padding: "8px 12px" }}>
             <MessageCircle size={20} color="#00a884" />
             <span style={{ fontWeight: 700, fontSize: "15px", color: "#00a884", letterSpacing: "-0.02em" }}>Chatly</span>
           </div>
@@ -125,7 +133,7 @@ export default function LoginPage() {
               </div>
             </div>
             <button type="submit" disabled={isSubmitting}
-              style={{ width: "100%", background: "#00a884", border: "none", borderRadius: "12px", padding: "14px", fontSize: "14px", fontWeight: 700, color: "#0b141a", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", marginTop: "4px", opacity: isSubmitting ? 0.7 : 1, transition: "background 0.2s" }}
+              style={{ width: "100%", background: "#00a884", border: "none", borderRadius: "12px", padding: "14px", fontSize: "14px", fontWeight: 700, color: "#0b141a", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px" }}
               onMouseEnter={(e) => { if (!isSubmitting) (e.currentTarget as HTMLButtonElement).style.background = "#00c49a"; }}
               onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#00a884"; }}
             >
@@ -138,7 +146,7 @@ export default function LoginPage() {
             <div style={{ flex: 1, height: "1px", background: "#1f2c33" }} />
           </div>
           <Link to="/register"
-            style={{ display: "block", textAlign: "center", border: "1.5px solid #2a3942", borderRadius: "12px", padding: "13px", fontSize: "14px", fontWeight: 600, color: "#e9edef", textDecoration: "none", transition: "border-color 0.2s, background 0.2s" }}
+            style={{ display: "block", textAlign: "center", border: "1.5px solid #2a3942", borderRadius: "12px", padding: "13px", fontSize: "14px", fontWeight: 600, color: "#e9edef", textDecoration: "none" }}
             onMouseEnter={(e) => { const el = e.currentTarget as HTMLAnchorElement; el.style.borderColor = "#3b4a54"; el.style.background = "#111b21"; }}
             onMouseLeave={(e) => { const el = e.currentTarget as HTMLAnchorElement; el.style.borderColor = "#2a3942"; el.style.background = "transparent"; }}
           >
