@@ -149,19 +149,3 @@ export default function LoginPage() {
     </div>
   );
 }
-            <p style={{ color: "#8696a0", fontSize: "14px" }}>Sign in to your Chatly account</p>
-          </div>
-          <form onSubmit={handleSubmit(onSubmit)} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-            <div>
-              <label style={{ fontSize: "12px", fontWeight: 600, color: "#8696a0", letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: "8px" }}>Email</label>
-              <div style={{ position: "relative" }}>
-                <span style={iconStyle("email")}><Mail size={16} /></span>
-                <input type="email" placeholder="you@example.com" style={{ ...inputStyle("email"), paddingLeft: "42px" }} onFocus={() => setFocused("email")} {...register("email")} />
-              </div>
-              {errors.email && <p style={{ color: "#ef4444", fontSize: "12px", marginTop: "5px" }}>{errors.email.message}</p>}
-            </div>
-            <div>
-              <label style={{ fontSize: "12px", fontWeight: 600, color: "#8696a0", letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: "8px" }}>Password</label>
-              <div style={{ position: "relative" }}>
-                <span style={iconStyle("password")}><Lock size={16} /></span>
-                <input type={show ? "text" : "password"} placeholder="••••••••" style={{ ...inputStyle("password"), paddingLeft: "42px", paddingRight: "46px" }} onFocus={() => set[...]
