@@ -34,12 +34,12 @@ export const errorHandler = (
     message: isOperational ? String(err.message) : 'An unexpected error occurred',
   };
 
-  // If the error contains validation details (e.g. express-validator), surface them safely.
-  if (err?.errors && Array.isArray(err.errors)) {
-    body.errors = err.errors.map((e: any) => ({ param: e.param, msg: e.msg }));
-    // Prefer the first validation message as the top-level message if available.
-    if (body.errors.length > 0) body.message = body.errors[0].msg;
-  }
+// If the error contains validation details (e.g. express-validator), surface them safely.
+if (err?.errors && Array.isArray(err.errors)) {
+  const validationErrors = err.errors.map((e: any) => ({ param: e.param, msg: e.msg }));
+  body.errors = validationErrors;
+  if (validationErrors.length > 0) body.message = validationErrors[0].msg;
+}
 
   res.status(statusCode).json(body);
 };
