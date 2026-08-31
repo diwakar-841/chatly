@@ -5,9 +5,7 @@ export const registerValidation: ValidationChain[] = [
   body('username')
     .trim()
     .isLength({ min: 3, max: 30 })
-    .withMessage('Username must be 3-30 characters')
-    .matches(/^[a-zA-Z0-9_]+$/)
-    .withMessage('Username can only contain letters, numbers and underscores'),
+    .withMessage('Username must be 3-30 characters'),
   body('email').isEmail().withMessage('Invalid email address').normalizeEmail(),
   body('password')
     .isLength({ min: 8 })

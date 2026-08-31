@@ -9,8 +9,11 @@ const OTP_TEMPLATE_ID = process.env.EMAILJS_OTP_TEMPLATE_ID as string;
  * passed through as template variables so a single EmailJS template can
  * render copy for both email verification and password reset.
  *
- * Expected template variables (configure these in the EmailJS dashboard):
- *   to_email, otp_code, purpose, expiry_minutes
+ * Expected template variable: {{otp_code}} in the EmailJS dashboard template.
+ * A few common alternate names are sent alongside it (otp, code, passcode)
+ * so the email still shows a code even if the template was built using a
+ * different placeholder name — EmailJS silently ignores any variable a
+ * template doesn't reference, so sending extras is harmless.
  */
 const sendOtpEmail = async (
   to: string,
@@ -18,12 +21,20 @@ const sendOtpEmail = async (
   purpose: 'Verify your email' | 'Reset your password',
   expiryMinutes: number
 ): Promise<void> => {
-  await emailjs.send(SERVICE_ID, OTP_TEMPLATE_ID, {
+  const templateParams = {
     to_email: to,
     otp_code: otp,
+    otp,
+    code: otp,
+    passcode: otp,
     purpose,
     expiry_minutes: expiryMinutes,
-  });
+  };
+  // Never logs in production (the OTP itself would end up in log storage otherwise).
+  if (process.env.NODE_ENV !== 'production') {
+    logger.info(`[Mail] Generated OTP for ${to}: ${otp} (template params: ${JSON.stringify(templateParams)})`);
+  }
+  await emailjs.send(SERVICE_ID, OTP_TEMPLATE_ID, templateParams);
 };
 
 /** Sends the password-reset OTP (valid 10 minutes). */

@@ -1,29 +1,40 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { CheckCircle, MessageCircle } from "lucide-react";
 import toast from "react-hot-toast";
 import { authApi } from "@/api/endpoints";
 import { apiError } from "@/api/client";
 import { useAuth } from "@/store/auth";
+import { disconnectSocket } from "@/lib/socket";
 import { Spinner } from "@/components/Spinner";
 
-/** Email verification page — user enters the 6-digit OTP that was emailed to them. */
+/**
+ * Email verification page — user enters the 6-digit OTP that was emailed to them.
+ * Always operates on the signed-in account's email; there's no manual email field,
+ * since this page is only reachable while logged in (see ProtectedRoute).
+ */
 export default function VerifyEmailPage() {
   const navigate = useNavigate();
   const storedUser = useAuth((s) => s.user);
+  const refreshToken = useAuth((s) => s.refreshToken);
   const setUser = useAuth((s) => s.setUser);
-  const [email, setEmail] = useState(storedUser?.email ?? "");
+  const clear = useAuth((s) => s.clear);
   const [otp, setOtp] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
   const [verified, setVerified] = useState(false);
 
+  // No logged-in account to verify — send them to log in first.
+  if (!storedUser) return <Navigate to="/login" replace />;
+  // Already verified (and not just now, in this session) — nothing to do here.
+  if (storedUser.isVerified && !verified) return <Navigate to="/chats" replace />;
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setVerifying(true);
     try {
-      await authApi.verifyEmail(email, otp);
-      if (storedUser) setUser({ ...storedUser, isVerified: true });
+      await authApi.verifyEmail(storedUser.email, otp);
+      setUser({ ...storedUser, isVerified: true });
       setVerified(true);
     } catch (e) {
       toast.error(apiError(e, "Invalid or expired OTP."));
@@ -42,6 +53,20 @@ export default function VerifyEmailPage() {
     } finally {
       setResending(false);
     }
+  };
+
+  /**
+   * Signs out of this unverified account and returns to /login. A plain link
+   * to /login won't work here: PublicOnlyRoute would immediately bounce a
+   * still-logged-in user back to /chats, which ProtectedRoute would then
+   * send right back to /verify-email since they're still unverified — so
+   * this has to actually clear the session first.
+   */
+  const backToLogin = async () => {
+    try { await authApi.logout(refreshToken || undefined); } catch { /* best-effort */ }
+    disconnectSocket();
+    clear();
+    navigate("/login");
   };
 
   return (
@@ -63,19 +88,9 @@ export default function VerifyEmailPage() {
           <>
             <h1 className="text-xl font-bold mb-2">Verify your email</h1>
             <p className="text-muted text-sm mb-6">
-              Enter the 6-digit code we emailed you. It expires in 10 minutes.
+              Enter the 6-digit code we emailed to <span className="text-fg">{storedUser.email}</span>. It expires in 10 minutes.
             </p>
             <form onSubmit={submit} className="space-y-4 text-left">
-              {!storedUser && (
-                <input
-                  type="email"
-                  required
-                  className="input"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              )}
               <input
                 type="text"
                 inputMode="numeric"
@@ -92,14 +107,12 @@ export default function VerifyEmailPage() {
               </button>
             </form>
             <div className="flex items-center justify-center gap-3 mt-4">
-              <Link to="/login" className="btn-ghost text-sm">
+              <button onClick={backToLogin} className="btn-ghost text-sm">
                 Back to login
-              </Link>
-              {storedUser && (
-                <button onClick={handleResend} disabled={resending} className="btn-ghost text-sm">
-                  {resending ? "..." : "Resend code"}
-                </button>
-              )}
+              </button>
+              <button onClick={handleResend} disabled={resending} className="btn-ghost text-sm">
+                {resending ? "..." : "Resend code"}
+              </button>
             </div>
           </>
         )}

@@ -12,7 +12,7 @@ import { Spinner } from "@/components/Spinner";
 
 const schema = z.object({
   fullName: z.string().min(1, "Full name required").max(60),
-  username: z.string().min(3, "Min 3 characters").max(30).regex(/^[a-zA-Z0-9_]+$/, "Letters, numbers, underscores only"),
+  username: z.string().min(3, "Min 3 characters").max(30),
   email: z.string().email("Invalid email"),
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
@@ -49,8 +49,8 @@ export default function RegisterPage() {
     try {
       const res = await authApi.register(data);
       setAuth(res);
-      toast.success("Account created! Check your email to verify.");
-      navigate("/chats");
+      toast.success("Account created! Enter the code we emailed you to verify.");
+      navigate("/verify-email");
     } catch (e) {
       toast.error(apiError(e, "Registration failed"));
     }
