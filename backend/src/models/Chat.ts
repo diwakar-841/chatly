@@ -25,4 +25,4 @@ chatSchema.index({ members: 1, updatedAt: -1 });
 chatSchema.index({ members: 1, isGroup: 1 });
 chatSchema.index({ pendingInvites: 1 });
 
-export default mongoose.model<IChat>('Chat', chatSchema);
+export default (mongoose.models.Chat as mongoose.Model<IChat>) || mongoose.model<IChat>('Chat', chatSchema);

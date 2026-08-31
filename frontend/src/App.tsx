@@ -50,8 +50,8 @@ export default function App() {
           <Route path="/forgot-password" element={<PublicOnlyRoute><ForgotPasswordPage /></PublicOnlyRoute>} />
 
           {/* These routes intentionally skip PublicOnlyRoute to work regardless of login state */}
-          <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
-          <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
 
           <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
             <Route path="/chats" element={<ChatsPage />} />

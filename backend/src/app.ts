@@ -52,7 +52,18 @@ app.use(
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-app.use(mongoSanitize());
+// Express 5 makes req.query/req.params getter-only, which breaks
+// express-mongo-sanitize's default middleware (it reassigns them).
+// sanitize() mutates objects in place, so call it on each part instead.
+app.use((req, _res, next) => {
+  for (const key of ['body', 'params', 'query', 'headers'] as const) {
+    const part = req[key];
+    if (part && typeof part === 'object') {
+      mongoSanitize.sanitize(part as Record<string, unknown>, { replaceWith: '_' });
+    }
+  }
+  next();
+});
 app.use(hpp());
 
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));

@@ -15,7 +15,7 @@ export const getProfile = async (
   targetUserId: string, requesterId: Types.ObjectId
 ): Promise<{ user: IUser; isSelf: boolean; canView: boolean; canChat: boolean }> => {
   const user = await User.findById(targetUserId).select(
-    '-password -resetPasswordToken -resetPasswordExpire -verifyEmailToken -verifyEmailExpire'
+    '-password -resetPasswordOtp -resetPasswordOtpExpire -verifyEmailOtp -verifyEmailOtpExpire'
   );
   if (!user) throw new AppError('User not found', 404);
 
@@ -53,7 +53,7 @@ export const updateProfile = async (
     if (updates[key] !== undefined) (filtered as Record<string, unknown>)[key] = updates[key];
   }
   return User.findByIdAndUpdate(userId, filtered, { new: true, runValidators: true }).select(
-    '-password -resetPasswordToken -resetPasswordExpire -verifyEmailToken -verifyEmailExpire'
+    '-password -resetPasswordOtp -resetPasswordOtpExpire -verifyEmailOtp -verifyEmailOtpExpire'
   );
 };
 

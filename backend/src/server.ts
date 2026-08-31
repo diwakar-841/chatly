@@ -7,15 +7,18 @@ import logger from './utils/logger.js';
 
 const PORT = process.env.PORT ?? '5000';
 
-connectDB();
-
 const server = http.createServer(app);
 
 initSocket(server);
 
-server.listen(PORT, () => {
-  logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV ?? 'development'} mode`);
-});
+const start = async (): Promise<void> => {
+  await connectDB();
+  server.listen(PORT, () => {
+    logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV ?? 'development'} mode`);
+  });
+};
+
+void start();
 
 /** Closes the HTTP server and Mongoose connection then exits cleanly. */
 const shutdown = async (signal: string): Promise<void> => {

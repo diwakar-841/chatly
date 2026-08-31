@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { ArrowLeft } from "lucide-react";
 import { authApi } from "@/api/endpoints";
 import { apiError } from "@/api/client";
 import { Spinner } from "@/components/Spinner";
 
-/** Forgot-password page — submits an email address to trigger a reset link. */
+/** Forgot-password page — submits an email address to trigger a one-time OTP. */
 export default function ForgotPasswordPage() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -18,7 +19,8 @@ export default function ForgotPasswordPage() {
     try {
       await authApi.forgot(email);
       setSent(true);
-      toast.success("Check your email");
+      toast.success("Check your email for the code");
+      navigate("/reset-password", { state: { email } });
     } catch (e) {
       toast.error(apiError(e));
     } finally {
@@ -34,15 +36,15 @@ export default function ForgotPasswordPage() {
         </Link>
         <div className="card p-6">
           <h1 className="text-xl font-bold mb-2">Forgot password?</h1>
-          <p className="text-muted text-sm mb-6">Enter your email and we'll send you a reset link.</p>
+          <p className="text-muted text-sm mb-6">Enter your email and we'll send you a one-time code.</p>
           {sent ? (
-            <p className="text-accent text-sm">If an account with that email exists, a reset link has been sent.</p>
+            <p className="text-accent text-sm">If an account with that email exists, a code has been sent.</p>
           ) : (
             <form onSubmit={submit} className="space-y-4">
               <input type="email" required className="input" placeholder="you@example.com"
                 value={email} onChange={(e) => setEmail(e.target.value)} />
               <button disabled={loading} className="btn-primary w-full">
-                {loading ? <Spinner /> : "Send reset link"}
+                {loading ? <Spinner /> : "Send code"}
               </button>
             </form>
           )}

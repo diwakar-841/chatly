@@ -6,8 +6,8 @@ import app from '../app.js';
 
 // Mock email service
 jest.mock('../services/emailService.js', () => ({
-  sendVerificationEmail: jest.fn(async () => {}),
-  sendPasswordReset: jest.fn(async () => {}),
+  sendVerificationOtp: jest.fn(async () => {}),
+  sendPasswordResetOtp: jest.fn(async () => {}),
 }));
 
 let mongo: MongoMemoryServer;

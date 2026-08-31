@@ -4,10 +4,10 @@ import mongoose from 'mongoose';
 import request from 'supertest';
 import app from '../app.js';
 
-// ── Prevent any real SMTP traffic during tests. ───────────────────────────────
+// ── Prevent any real EmailJS traffic during tests. ────────────────────────────
 jest.mock('../services/emailService.js', () => ({
-  sendVerificationEmail: jest.fn(async () => {}),
-  sendPasswordReset: jest.fn(async () => {}),
+  sendVerificationOtp: jest.fn(async () => {}),
+  sendPasswordResetOtp: jest.fn(async () => {}),
 }));
 
 let mongo: MongoMemoryServer;

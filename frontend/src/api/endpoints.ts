@@ -13,10 +13,10 @@ export const authApi = {
   logoutAll: () => api.post("/auth/logout-all").then((r) => r.data),
   me: () => api.get<User>("/auth/me").then((r) => r.data),
   forgot: (email: string) => api.post("/auth/forgot-password", { email }).then((r) => r.data),
-  reset: (token: string, password: string) =>
-    api.post(`/auth/reset-password/${token}`, { password }).then((r) => r.data),
-  verifyEmail: (token: string) =>
-    api.get(`/auth/verify-email/${token}`).then((r) => r.data),
+  reset: (email: string, otp: string, password: string) =>
+    api.post("/auth/reset-password", { email, otp, password }).then((r) => r.data),
+  verifyEmail: (email: string, otp: string) =>
+    api.post("/auth/verify-email", { email, otp }).then((r) => r.data),
   resendVerification: () =>
     api.post("/auth/resend-verification").then((r) => r.data),
   /** Registers the user's NaCl public key for E2E encryption. Called once per login/session. */

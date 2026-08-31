@@ -1,31 +1,28 @@
-import nodemailer from 'nodemailer';
+import emailjs from '@emailjs/nodejs';
 import logger from '../utils/logger.js';
 
 /**
- * Nodemailer transporter configured for STARTTLS (port 587).
- * Uses `requireTLS` to force the upgrade, which is needed for Gmail and most
- * hosted SMTP providers. `rejectUnauthorized: false` avoids cert errors on
- * restricted environments (e.g. Termux/Android).
+ * EmailJS server-side client (@emailjs/nodejs). Sends transactional email
+ * through the EmailJS API instead of raw SMTP. The private key is required
+ * for server-side use — it authenticates the request so the public key
+ * alone can't be used to send on this account's behalf.
+ *
+ * Required env vars:
+ *   EMAILJS_SERVICE_ID   - EmailJS "Email Service" ID
+ *   EMAILJS_PUBLIC_KEY   - EmailJS account public key
+ *   EMAILJS_PRIVATE_KEY  - EmailJS account private key (server-side auth)
+ *   EMAILJS_OTP_TEMPLATE_ID - Template ID used for OTP emails (verification + reset)
  */
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: parseInt(process.env.EMAIL_PORT ?? '587', 10),
-  secure: false,
-  requireTLS: true,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  tls: { rejectUnauthorized: false },
+emailjs.init({
+  publicKey: process.env.EMAILJS_PUBLIC_KEY as string,
+  privateKey: process.env.EMAILJS_PRIVATE_KEY as string,
 });
 
-transporter.verify((error) => {
-  if (error) {
-    logger.error(`[Mail] Connection failed: ${(error as Error).message}`);
-    logger.error(`[Mail] Check EMAIL_HOST, EMAIL_USER, EMAIL_PASS in your .env`);
-  } else {
-    logger.info('[Mail] SMTP connected — ready to send emails');
-  }
-});
+if (!process.env.EMAILJS_SERVICE_ID || !process.env.EMAILJS_PUBLIC_KEY ||
+    !process.env.EMAILJS_PRIVATE_KEY || !process.env.EMAILJS_OTP_TEMPLATE_ID) {
+  logger.error('[Mail] Missing EMAILJS_SERVICE_ID, EMAILJS_PUBLIC_KEY, EMAILJS_PRIVATE_KEY or EMAILJS_OTP_TEMPLATE_ID in your .env');
+} else {
+  logger.info('[Mail] EmailJS configured — ready to send emails');
+}
 
-export default transporter;
+export default emailjs;

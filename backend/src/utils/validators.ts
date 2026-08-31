@@ -25,6 +25,25 @@ export const loginValidation: ValidationChain[] = [
   body('password').notEmpty().withMessage('Password is required'),
 ];
 
+/** Validates the email-verification request body (email + 6-digit OTP). */
+export const verifyEmailValidation: ValidationChain[] = [
+  body('email').isEmail().withMessage('Invalid email address').normalizeEmail(),
+  body('otp').isLength({ min: 6, max: 6 }).withMessage('OTP must be 6 digits').isNumeric().withMessage('OTP must be numeric'),
+];
+
+/** Validates the password-reset request body (email + 6-digit OTP + new password). */
+export const resetPasswordValidation: ValidationChain[] = [
+  body('email').isEmail().withMessage('Invalid email address').normalizeEmail(),
+  body('otp').isLength({ min: 6, max: 6 }).withMessage('OTP must be 6 digits').isNumeric().withMessage('OTP must be numeric'),
+  body('password')
+    .isLength({ min: 8 })
+    .withMessage('Password must be at least 8 characters')
+    .matches(/[A-Z]/)
+    .withMessage('Password must contain at least one uppercase letter')
+    .matches(/[0-9]/)
+    .withMessage('Password must contain at least one number'),
+];
+
 /** Validates the send-message request body (chatId required; content, type, replyTo optional). */
 export const sendMessageValidation: ValidationChain[] = [
   body('chatId').notEmpty().withMessage('chatId is required').isMongoId().withMessage('Invalid chatId'),

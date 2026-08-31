@@ -13,12 +13,12 @@ export interface IUser extends Document {
   isOnline: boolean;
   lastSeen: Date;
   isVerified: boolean;
-  verifyEmailToken?: string;
-  verifyEmailExpire?: Date;
+  verifyEmailOtp?: string;
+  verifyEmailOtpExpire?: Date;
   education: IEducation[];
   experience: IExperience[];
-  resetPasswordToken?: string;
-  resetPasswordExpire?: Date;
+  resetPasswordOtp?: string;
+  resetPasswordOtpExpire?: Date;
   /** NaCl Curve25519 public key (base64) for E2E encryption. */
   publicKey?: string;
   createdAt: Date;

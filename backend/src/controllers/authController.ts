@@ -52,26 +52,25 @@ export const forgotPassword = async (req: Request, res: Response, next: NextFunc
   } catch (err) { next(err); }
 };
 
-/** Validates the reset token and sets a new password, returning a fresh access token. */
+/** Validates the emailed OTP and sets a new password, returning a fresh access token. */
 export const resetPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const accessToken = await authService.resetPassword(
-      req.params.token,
-      (req.body as { password: string }).password
-    );
+    const { email, otp, password } = req.body as { email: string; otp: string; password: string };
+    const accessToken = await authService.resetPassword(email, otp, password);
     res.json({ accessToken });
   } catch (err) { next(err); }
 };
 
-/** Marks the user's email as verified using the token from the verification link. */
+/** Marks the user's email as verified using the OTP code sent by email. */
 export const verifyEmail = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    await authService.verifyEmail(req.params.token);
+    const { email, otp } = req.body as { email: string; otp: string };
+    await authService.verifyEmail(email, otp);
     res.json({ message: 'Email verified successfully' });
   } catch (err) { next(err); }
 };
 
-/** Re-sends the email verification link to the current user's address. */
+/** Re-sends the email verification OTP to the current user's address. */
 export const resendVerification = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     await authService.resendVerification((req as AuthRequest).user._id);

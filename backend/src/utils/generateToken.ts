@@ -12,9 +12,13 @@ export const generateToken = (id: Types.ObjectId): string =>
 export const generateRefreshToken = (): string =>
   crypto.randomBytes(64).toString('hex');
 
-/** Generates a password-reset token and its SHA-256 hash for safe DB storage. */
-export const generateResetToken = (): { resetToken: string; hash: string } => {
-  const resetToken = crypto.randomBytes(32).toString('hex');
-  const hash = crypto.createHash('sha256').update(resetToken).digest('hex');
-  return { resetToken, hash };
+/**
+ * Generates a random 6-digit numeric OTP and its SHA-256 hash for safe DB
+ * storage. The raw `otp` is emailed to the user (via EmailJS) and never
+ * persisted — only `hash` is stored, so a DB leak doesn't expose live codes.
+ */
+export const generateOtp = (): { otp: string; hash: string } => {
+  const otp = crypto.randomInt(100000, 1000000).toString();
+  const hash = crypto.createHash('sha256').update(otp).digest('hex');
+  return { otp, hash };
 };

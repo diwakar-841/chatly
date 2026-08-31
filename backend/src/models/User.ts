@@ -14,8 +14,9 @@ const userSchema = new Schema<IUser>(
     isOnline: { type: Boolean, default: false },
     lastSeen: { type: Date, default: Date.now },
     isVerified: { type: Boolean, default: false },
-    verifyEmailToken: { type: String, select: false },
-    verifyEmailExpire: { type: Date, select: false },
+    /** SHA-256 hash of the current 6-digit email-verification OTP (raw code is emailed, never stored). */
+    verifyEmailOtp: { type: String, select: false },
+    verifyEmailOtpExpire: { type: Date, select: false },
     education: [
       {
         school: String,
@@ -37,8 +38,9 @@ const userSchema = new Schema<IUser>(
         description: String,
       },
     ],
-    resetPasswordToken: { type: String, select: false },
-    resetPasswordExpire: { type: Date, select: false },
+    /** SHA-256 hash of the current 6-digit password-reset OTP (raw code is emailed, never stored). */
+    resetPasswordOtp: { type: String, select: false },
+    resetPasswordOtpExpire: { type: Date, select: false },
     /** NaCl Curve25519 public key (base64) for E2E encryption. Registered by the client on login. */
     publicKey: { type: String, default: '' },
   },
@@ -57,4 +59,4 @@ userSchema.methods.matchPassword = function (enteredPassword: string): Promise<b
   return bcrypt.compare(enteredPassword, this.password as string);
 };
 
-export default mongoose.model<IUser>('User', userSchema);
+export default (mongoose.models.User as mongoose.Model<IUser>) || mongoose.model<IUser>('User', userSchema);

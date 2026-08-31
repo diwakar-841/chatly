@@ -1,37 +1,42 @@
-import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
-import { CheckCircle, XCircle, Loader2, MessageCircle } from "lucide-react";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { CheckCircle, MessageCircle } from "lucide-react";
 import toast from "react-hot-toast";
 import { authApi } from "@/api/endpoints";
 import { apiError } from "@/api/client";
+import { useAuth } from "@/store/auth";
+import { Spinner } from "@/components/Spinner";
 
-/** Handles the email verification link — calls the API with the URL token and renders success or error. */
+/** Email verification page — user enters the 6-digit OTP that was emailed to them. */
 export default function VerifyEmailPage() {
-  const { token = "" } = useParams();
-  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const storedUser = useAuth((s) => s.user);
+  const setUser = useAuth((s) => s.setUser);
+  const [email, setEmail] = useState(storedUser?.email ?? "");
+  const [otp, setOtp] = useState("");
+  const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
+  const [verified, setVerified] = useState(false);
 
-  useEffect(() => {
-    if (!token) {
-      setErrorMsg("Invalid verification link.");
-      setStatus("error");
-      return;
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setVerifying(true);
+    try {
+      await authApi.verifyEmail(email, otp);
+      if (storedUser) setUser({ ...storedUser, isVerified: true });
+      setVerified(true);
+    } catch (e) {
+      toast.error(apiError(e, "Invalid or expired OTP."));
+    } finally {
+      setVerifying(false);
     }
-    authApi
-      .verifyEmail(token)
-      .then(() => setStatus("success"))
-      .catch((e) => {
-        setErrorMsg(apiError(e, "Verification failed. Please try again."));
-        setStatus("error");
-      });
-  }, [token]);
+  };
 
   const handleResend = async () => {
     setResending(true);
     try {
       await authApi.resendVerification();
-      toast.success("Verification email sent. Please check your inbox.");
+      toast.success("A new OTP was sent to your email.");
     } catch (e) {
       toast.error(apiError(e, "Unable to resend verification email."));
     } finally {
@@ -45,39 +50,56 @@ export default function VerifyEmailPage() {
         <div className="w-14 h-14 rounded-2xl bg-accent flex items-center justify-center mx-auto mb-6">
           <MessageCircle className="w-7 h-7 text-black" />
         </div>
-        {status === "loading" && (
-          <>
-            <Loader2 className="w-10 h-10 animate-spin text-accent mx-auto mb-4" />
-            <h1 className="text-xl font-bold mb-2">Verifying your email…</h1>
-            <p className="text-muted text-sm">Please wait a moment.</p>
-          </>
-        )}
-        {status === "success" && (
+        {verified ? (
           <>
             <CheckCircle className="w-12 h-12 text-accent mx-auto mb-4" />
             <h1 className="text-xl font-bold mb-2">Email verified!</h1>
             <p className="text-muted text-sm mb-6">Your account is now fully activated.</p>
-            <Link to="/login" className="btn-primary inline-flex">
-              Go to login
-            </Link>
+            <button onClick={() => navigate("/chats")} className="btn-primary inline-flex">
+              Continue
+            </button>
           </>
-        )}
-        {status === "error" && (
+        ) : (
           <>
-            <XCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-            <h1 className="text-xl font-bold mb-2">Verification failed</h1>
-            <p className="text-muted text-sm mb-4">{errorMsg || "The link may be expired or invalid."}</p>
-            <div className="flex items-center justify-center gap-3">
-              <Link to="/login" className="btn-primary inline-flex">
+            <h1 className="text-xl font-bold mb-2">Verify your email</h1>
+            <p className="text-muted text-sm mb-6">
+              Enter the 6-digit code we emailed you. It expires in 10 minutes.
+            </p>
+            <form onSubmit={submit} className="space-y-4 text-left">
+              {!storedUser && (
+                <input
+                  type="email"
+                  required
+                  className="input"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              )}
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="\d{6}"
+                maxLength={6}
+                required
+                className="input text-center tracking-[0.5em]"
+                placeholder="------"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              />
+              <button disabled={verifying || otp.length !== 6} className="btn-primary w-full">
+                {verifying ? <Spinner /> : "Verify"}
+              </button>
+            </form>
+            <div className="flex items-center justify-center gap-3 mt-4">
+              <Link to="/login" className="btn-ghost text-sm">
                 Back to login
               </Link>
-              <button
-                onClick={handleResend}
-                disabled={resending}
-                className="btn-ghost text-sm"
-              >
-                {resending ? "..." : "Resend verification"}
-              </button>
+              {storedUser && (
+                <button onClick={handleResend} disabled={resending} className="btn-ghost text-sm">
+                  {resending ? "..." : "Resend code"}
+                </button>
+              )}
             </div>
           </>
         )}

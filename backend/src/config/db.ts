@@ -4,7 +4,13 @@ import logger from '../utils/logger.js';
 /** Establishes the Mongoose connection; exits the process on failure. */
 const connectDB = async (): Promise<void> => {
   try {
-    const conn = await mongoose.connect(process.env.MONGO_URI as string);
+    if (!process.env.MONGO_URI) {
+      throw new Error('MONGO_URI is not set — check your .env file');
+    }
+    const conn = await mongoose.connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 10_000,
+      connectTimeoutMS: 10_000,
+    });
     logger.info(`MongoDB connected: ${conn.connection.host}`);
   } catch (error) {
     logger.error(`MongoDB connection error: ${(error as Error).message}`);

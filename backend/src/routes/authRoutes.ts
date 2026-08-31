@@ -6,7 +6,7 @@ import {
 import { updatePublicKey, getUserPublicKey } from '../controllers/e2eController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { authLimiter } from '../middleware/rateLimitMiddleware.js';
-import { registerValidation, loginValidation } from '../utils/validators.js';
+import { registerValidation, loginValidation, verifyEmailValidation, resetPasswordValidation } from '../utils/validators.js';
 import validate from '../middleware/validateMiddleware.js';
 
 const router = Router();
@@ -17,8 +17,8 @@ router.post('/refresh-token', authLimiter, refreshToken);
 router.post('/logout', protect, logout);
 router.post('/logout-all', protect, logoutAll);
 router.post('/forgot-password', authLimiter, forgotPassword);
-router.post('/reset-password/:token', authLimiter, resetPassword);
-router.get('/verify-email/:token', verifyEmail);
+router.post('/reset-password', authLimiter, resetPasswordValidation, validate, resetPassword);
+router.post('/verify-email', authLimiter, verifyEmailValidation, validate, verifyEmail);
 router.post('/resend-verification', protect, resendVerification);
 router.get('/me', protect, getMe);
 

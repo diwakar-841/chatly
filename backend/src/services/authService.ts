@@ -2,8 +2,8 @@ import crypto from 'crypto';
 import { Types } from 'mongoose';
 import User from '../models/User.js';
 import RefreshToken from '../models/RefreshToken.js';
-import { generateToken, generateRefreshToken, generateResetToken } from '../utils/generateToken.js';
-import { sendPasswordReset, sendVerificationEmail } from './emailService.js';
+import { generateToken, generateRefreshToken, generateOtp } from '../utils/generateToken.js';
+import { sendPasswordResetOtp, sendVerificationOtp } from './emailService.js';
 import { AppError } from '../utils/errors.js';
 import { AuthResult, SafeUser } from '../types/index.js';
 import logger from '../utils/logger.js';
@@ -50,19 +50,18 @@ export const register = async (data: {
 
   const user = await User.create(data);
 
-  const { resetToken: verifyToken, hash } = generateResetToken();
-  user.verifyEmailToken = hash;
-  user.verifyEmailExpire = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const { otp, hash } = generateOtp();
+  user.verifyEmailOtp = hash;
+  user.verifyEmailOtpExpire = new Date(Date.now() + 10 * 60 * 1000);
   await user.save({ validateBeforeSave: false });
 
-  const verifyUrl = `${process.env.CLIENT_URL}/verify-email/${verifyToken}`;
   try {
-    await sendVerificationEmail(user.email, verifyUrl);
+    await sendVerificationOtp(user.email, otp);
   } catch (err) {
-    user.verifyEmailToken = undefined;
-    user.verifyEmailExpire = undefined;
+    user.verifyEmailOtp = undefined;
+    user.verifyEmailOtpExpire = undefined;
     await user.save({ validateBeforeSave: false });
-    logger.error(`[Mail] Failed to send verification email to ${user.email}: ${(err as Error).message}`);
+    logger.error(`[Mail] Failed to send verification OTP to ${user.email}: ${(err as Error).message}`);
   }
 
   const { accessToken, refreshToken } = await issueTokens(user);
@@ -105,68 +104,68 @@ export const logoutAll = async (userId: Types.ObjectId): Promise<void> => {
 };
 
 /**
- * Generates a password-reset token, stores its hash, and sends the reset URL
- * by email. Returns silently if no account exists for the address (avoids enumeration).
+ * Generates a password-reset OTP, stores its hash, and emails the raw code.
+ * Returns silently if no account exists for the address (avoids enumeration).
  */
 export const forgotPassword = async (email: string): Promise<void> => {
   const user = await User.findOne({ email });
   if (!user) return;
 
-  const { resetToken, hash } = generateResetToken();
-  user.resetPasswordToken = hash;
-  user.resetPasswordExpire = new Date(Date.now() + 30 * 60 * 1000);
+  const { otp, hash } = generateOtp();
+  user.resetPasswordOtp = hash;
+  user.resetPasswordOtpExpire = new Date(Date.now() + 10 * 60 * 1000);
   await user.save({ validateBeforeSave: false });
 
-  const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
   try {
-    await sendPasswordReset(user.email, resetUrl);
+    await sendPasswordResetOtp(user.email, otp);
   } catch {
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpire = undefined;
+    user.resetPasswordOtp = undefined;
+    user.resetPasswordOtpExpire = undefined;
     await user.save({ validateBeforeSave: false });
     throw new AppError('Email could not be sent. Please try again later.', 500);
   }
 };
 
-/** Sets a new password after verifying the reset token; revokes all active sessions. */
-export const resetPassword = async (resetToken: string, newPassword: string): Promise<string> => {
-  const hash = crypto.createHash('sha256').update(resetToken).digest('hex');
+/** Sets a new password after verifying the emailed OTP; revokes all active sessions. */
+export const resetPassword = async (email: string, otp: string, newPassword: string): Promise<string> => {
+  const hash = crypto.createHash('sha256').update(otp).digest('hex');
   const user = await User.findOne({
-    resetPasswordToken: hash,
-    resetPasswordExpire: { $gt: Date.now() },
-  }).select('+resetPasswordToken +resetPasswordExpire');
-  if (!user) throw new AppError('Invalid or expired reset token', 400);
+    email,
+    resetPasswordOtp: hash,
+    resetPasswordOtpExpire: { $gt: Date.now() },
+  }).select('+resetPasswordOtp +resetPasswordOtpExpire');
+  if (!user) throw new AppError('Invalid or expired OTP', 400);
   user.password = newPassword;
-  user.resetPasswordToken = undefined;
-  user.resetPasswordExpire = undefined;
+  user.resetPasswordOtp = undefined;
+  user.resetPasswordOtpExpire = undefined;
   await user.save();
   await RefreshToken.deleteMany({ user: user._id });
   return generateToken(user._id as Types.ObjectId);
 };
 
-/** Marks the user's email as verified by validating the hashed token. */
-export const verifyEmail = async (token: string): Promise<void> => {
-  const hash = crypto.createHash('sha256').update(token).digest('hex');
+/** Marks the user's email as verified by validating the emailed OTP. */
+export const verifyEmail = async (email: string, otp: string): Promise<void> => {
+  const hash = crypto.createHash('sha256').update(otp).digest('hex');
   const user = await User.findOne({
-    verifyEmailToken: hash,
-    verifyEmailExpire: { $gt: Date.now() },
-  }).select('+verifyEmailToken +verifyEmailExpire');
-  if (!user) throw new AppError('Invalid or expired verification token', 400);
+    email,
+    verifyEmailOtp: hash,
+    verifyEmailOtpExpire: { $gt: Date.now() },
+  }).select('+verifyEmailOtp +verifyEmailOtpExpire');
+  if (!user) throw new AppError('Invalid or expired OTP', 400);
   user.isVerified = true;
-  user.verifyEmailToken = undefined;
-  user.verifyEmailExpire = undefined;
+  user.verifyEmailOtp = undefined;
+  user.verifyEmailOtpExpire = undefined;
   await user.save({ validateBeforeSave: false });
 };
 
-/** Re-generates and sends a fresh email verification link; throws if already verified. */
+/** Re-generates and sends a fresh email verification OTP; throws if already verified. */
 export const resendVerification = async (userId: Types.ObjectId): Promise<void> => {
-  const user = await User.findById(userId).select('+verifyEmailToken +verifyEmailExpire');
+  const user = await User.findById(userId).select('+verifyEmailOtp +verifyEmailOtpExpire');
   if (!user) throw new AppError('User not found', 404);
   if (user.isVerified) throw new AppError('Email is already verified', 400);
-  const { resetToken: verifyToken, hash } = generateResetToken();
-  user.verifyEmailToken = hash;
-  user.verifyEmailExpire = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const { otp, hash } = generateOtp();
+  user.verifyEmailOtp = hash;
+  user.verifyEmailOtpExpire = new Date(Date.now() + 10 * 60 * 1000);
   await user.save({ validateBeforeSave: false });
-  const verifyUrl = `${process.env.CLIENT_URL}/verify-email/${verifyToken}`;
-  await sendVerificationEmail(user.email, verifyUrl);
+  await sendVerificationOtp(user.email, otp);
 };
