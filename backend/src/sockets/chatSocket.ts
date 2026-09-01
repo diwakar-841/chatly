@@ -8,7 +8,6 @@ interface AuthenticatedSocket extends Socket {
   user: IUser;
 }
 
-
 export default (io: Server, socket: AuthenticatedSocket): void => {
   
   socket.on("chat:join", (chatId: string) => {

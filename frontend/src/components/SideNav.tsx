@@ -15,7 +15,6 @@ const items = [
   { to: "/profile", icon: User, label: "Profile" },
 ];
 
-
 export function SideNav() {
   const { refreshToken, clear } = useAuth();
   const { unreadNotifCount, pendingRequestCount, groupInviteCount } = useSocket();

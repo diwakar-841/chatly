@@ -3,13 +3,11 @@ import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff } from "lucide-react";
 import { Avatar } from "@/components/Avatar";
 import { useCall } from "@/context/CallContext";
 
-
 function formatDuration(total: number): string {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
-
 
 export function CallOverlay() {
   const {

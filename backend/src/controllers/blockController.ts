@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from "express";
 import * as blockService from "../services/blockService.js";
 import { AuthRequest } from "../types/index.js";
 
-
 export const blockUser = async (
   req: Request,
   res: Response,
@@ -18,7 +17,6 @@ export const blockUser = async (
     next(err);
   }
 };
-
 
 export const unblockUser = async (
   req: Request,
@@ -36,7 +34,6 @@ export const unblockUser = async (
   }
 };
 
-
 export const getBlockedUsers = async (
   req: Request,
   res: Response,
@@ -51,7 +48,6 @@ export const getBlockedUsers = async (
     next(err);
   }
 };
-
 
 export const checkBlock = async (
   req: Request,

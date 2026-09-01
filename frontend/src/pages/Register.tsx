@@ -18,7 +18,6 @@ const schema = z.object({
 });
 type FormData = z.infer<typeof schema>;
 
-
 function getPasswordStrength(pw: string): { score: number; label: string; color: string } {
   if (!pw) {
     return { score: 0, label: "", color: "#2a3942" };
@@ -47,7 +46,6 @@ function getPasswordStrength(pw: string): { score: number; label: string; color:
   }
   return { score: 4, label: "Strong", color: "#00a884" };
 }
-
 
 export default function RegisterPage() {
   const navigate = useNavigate();

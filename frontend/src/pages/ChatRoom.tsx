@@ -41,7 +41,6 @@ import {
 
 const EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
-
 function decodeHtmlEntities(str: string): string {
   return str
     .replace(/&amp;/g, "&")
@@ -51,7 +50,6 @@ function decodeHtmlEntities(str: string): string {
     .replace(/&#x27;/g, "'")
     .replace(/&#39;/g, "'");
 }
-
 
 function dateSeparator(iso: string) {
   const d = new Date(iso);
@@ -63,7 +61,6 @@ function dateSeparator(iso: string) {
   }
   return format(d, "MMMM d, yyyy");
 }
-
 
 function StatusTick({ status, mine }: { status?: string; mine: boolean }) {
   if (!mine || !status) {
@@ -77,7 +74,6 @@ function StatusTick({ status, mine }: { status?: string; mine: boolean }) {
   }
   return <Check className="w-3 h-3 text-muted inline-block shrink-0" />;
 }
-
 
 export default function ChatRoomPage() {
   const { chatId = "" } = useParams();

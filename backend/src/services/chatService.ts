@@ -20,7 +20,6 @@ import Notification from "../models/Notification.js";
 import { getIO } from "../config/socket.js";
 import escapeRegex from "../utils/escapeRegex.js";
 
-
 export const getOrCreateDM = async (
   userId1: Types.ObjectId,
   userId2: string,
@@ -82,7 +81,6 @@ export const getOrCreateDM = async (
   return chat as IChat;
 };
 
-
 export const getChatById = async (
   chatId: string,
   userId: Types.ObjectId,
@@ -113,7 +111,6 @@ export const getChatById = async (
   return obj;
 };
 
-
 export const getUserChats = async (
   userId: Types.ObjectId,
   page = 1,
@@ -134,7 +131,6 @@ export const getUserChats = async (
     return obj;
   });
 };
-
 
 export const createGroup = async ({
   name,
@@ -196,7 +192,6 @@ export const createGroup = async ({
   );
 };
 
-
 export const updateGroup = async (
   chatId: string,
   userId: Types.ObjectId,
@@ -238,7 +233,6 @@ export const updateGroup = async (
     "username fullName avatar isOnline",
   );
 };
-
 
 export const addMembers = async (
   chatId: string,
@@ -308,7 +302,6 @@ export const addMembers = async (
   ) as Promise<IChat>;
 };
 
-
 export const removeMember = async (
   chatId: string,
   adminId: Types.ObjectId,
@@ -340,7 +333,6 @@ export const removeMember = async (
   ) as Promise<IChat>;
 };
 
-
 export const leaveGroup = async (
   chatId: string,
   userId: Types.ObjectId,
@@ -369,7 +361,6 @@ export const leaveGroup = async (
   await chat.save();
   return { disbanded: false };
 };
-
 
 export const requestJoinGroup = async (
   chatId: string,
@@ -441,7 +432,6 @@ export const requestJoinGroup = async (
   };
 };
 
-
 export const acceptGroupInvite = async (
   chatId: string,
   userId: Types.ObjectId,
@@ -469,7 +459,6 @@ export const acceptGroupInvite = async (
   return { message: "You have joined the group" };
 };
 
-
 export const rejectGroupInvite = async (
   chatId: string,
   userId: Types.ObjectId,
@@ -485,7 +474,6 @@ export const rejectGroupInvite = async (
   return { message: "Invite declined" };
 };
 
-
 export const getMyGroupInvites = async (
   userId: Types.ObjectId,
 ): Promise<IChat[]> => {
@@ -495,7 +483,6 @@ export const getMyGroupInvites = async (
     .sort({ updatedAt: -1 });
   return chats as IChat[];
 };
-
 
 export const getJoinRequests = async (
   chatId: string,
@@ -518,7 +505,6 @@ export const getJoinRequests = async (
     .populate("joinRequests", "username fullName avatar")
     .populate("members admins", "username fullName avatar isOnline");
 };
-
 
 export const handleJoinRequest = async (
   chatId: string,
@@ -565,7 +551,6 @@ export const handleJoinRequest = async (
     .populate("joinRequests", "username fullName avatar")
     .populate("members admins", "username fullName avatar isOnline");
 };
-
 
 export const searchGroups = async (
   query: string,
@@ -623,7 +608,6 @@ export const searchGroups = async (
   return { data, total, page, hasMore: skip + groups.length < total };
 };
 
-
 export const togglePinMessage = async (
   chatId: string,
   messageId: string,
@@ -666,7 +650,6 @@ export const togglePinMessage = async (
     .populate("pinnedMessages");
 };
 
-
 export const getMessages = async (
   chatId: string,
   userId: Types.ObjectId,
@@ -703,7 +686,6 @@ export const getMessages = async (
     hasMore: skip + messages.length < total,
   };
 };
-
 
 export const hideChat = async (
   chatId: string,

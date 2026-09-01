@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from "express";
 import * as authService from "../services/authService.js";
 import { AuthRequest } from "../types/index.js";
 
-
 export const register = async (
   req: Request,
   res: Response,
@@ -23,7 +22,6 @@ export const register = async (
   }
 };
 
-
 export const login = async (
   req: Request,
   res: Response,
@@ -39,7 +37,6 @@ export const login = async (
   }
 };
 
-
 export const refreshToken = async (
   req: Request,
   res: Response,
@@ -53,7 +50,6 @@ export const refreshToken = async (
     next(err);
   }
 };
-
 
 export const logout = async (
   req: Request,
@@ -69,7 +65,6 @@ export const logout = async (
   }
 };
 
-
 export const logoutAll = async (
   req: Request,
   res: Response,
@@ -82,7 +77,6 @@ export const logoutAll = async (
     next(err);
   }
 };
-
 
 export const forgotPassword = async (
   req: Request,
@@ -99,7 +93,6 @@ export const forgotPassword = async (
     next(err);
   }
 };
-
 
 export const resetPassword = async (
   req: Request,
@@ -119,7 +112,6 @@ export const resetPassword = async (
   }
 };
 
-
 export const verifyEmail = async (
   req: Request,
   res: Response,
@@ -134,7 +126,6 @@ export const verifyEmail = async (
   }
 };
 
-
 export const resendVerification = async (
   req: Request,
   res: Response,
@@ -147,7 +138,6 @@ export const resendVerification = async (
     next(err);
   }
 };
-
 
 export const getMe = (req: Request, res: Response): void => {
   res.json((req as AuthRequest).user);

@@ -55,7 +55,6 @@ export const decryptMessage = (
   }
 };
 
-
 export const getOrCreateKeyPair = (userId: string): { publicKey: string; secretKey: string } => {
   const scopedKey = keyStorageKey(userId);
 

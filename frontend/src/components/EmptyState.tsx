@@ -1,6 +1,5 @@
 import type { LucideIcon } from "lucide-react";
 
-
 export function EmptyState({
   icon: Icon,
   title,

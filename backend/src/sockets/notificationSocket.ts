@@ -7,7 +7,6 @@ interface AuthenticatedSocket extends Socket {
   user: IUser;
 }
 
-
 export default (io: Server, socket: AuthenticatedSocket): void => {
   
   socket.on("notification:read", async (notificationId: string) => {

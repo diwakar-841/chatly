@@ -1,7 +1,6 @@
 import mongoose from "mongoose";
 import logger from "../utils/logger.js";
 
-
 const connectDB = async (): Promise<void> => {
   try {
     if (!process.env.MONGO_URI) {
@@ -17,7 +16,6 @@ const connectDB = async (): Promise<void> => {
     process.exit(1);
   }
 };
-
 
 export const disconnectDB = async (): Promise<void> => {
   try {

@@ -23,7 +23,6 @@ router.post(
   sendMessage,
 );
 
-
 router.put("/read/:chatId", protect, markRead);
 
 router.put("/:messageId", protect, editMessage);

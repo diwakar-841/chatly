@@ -14,11 +14,9 @@ import logger from "../utils/logger.js";
 
 const REFRESH_TOKEN_EXPIRE_DAYS = 30;
 
-
 const hashToken = (token: string): string => {
   return crypto.createHash("sha256").update(token).digest("hex");
 };
-
 
 const safeUser = (user: InstanceType<typeof User>): SafeUser => {
   return {
@@ -31,7 +29,6 @@ const safeUser = (user: InstanceType<typeof User>): SafeUser => {
     isVerified: user.isVerified,
   };
 };
-
 
 const issueTokens = async (
   user: InstanceType<typeof User>,
@@ -49,7 +46,6 @@ const issueTokens = async (
   });
   return { accessToken, refreshToken: rawRefreshToken };
 };
-
 
 export const register = async (data: {
   username: string;
@@ -89,7 +85,6 @@ export const register = async (data: {
   return { accessToken, refreshToken, user: safeUser(user) };
 };
 
-
 export const login = async (data: {
   email: string;
   password: string;
@@ -101,7 +96,6 @@ export const login = async (data: {
   const { accessToken, refreshToken } = await issueTokens(user);
   return { accessToken, refreshToken, user: safeUser(user) };
 };
-
 
 export const refresh = async (rawRefreshToken: string): Promise<AuthResult> => {
   if (!rawRefreshToken) {
@@ -125,7 +119,6 @@ export const refresh = async (rawRefreshToken: string): Promise<AuthResult> => {
   return { accessToken, refreshToken: newRefreshToken, user: safeUser(user) };
 };
 
-
 export const logout = async (
   rawRefreshToken: string | undefined,
   userId: Types.ObjectId,
@@ -137,11 +130,9 @@ export const logout = async (
   await RefreshToken.deleteOne({ token: hashed, user: userId });
 };
 
-
 export const logoutAll = async (userId: Types.ObjectId): Promise<void> => {
   await RefreshToken.deleteMany({ user: userId });
 };
-
 
 export const forgotPassword = async (email: string): Promise<void> => {
   const user = await User.findOne({ email });
@@ -163,7 +154,6 @@ export const forgotPassword = async (email: string): Promise<void> => {
     throw new AppError("Email could not be sent. Please try again later.", 500);
   }
 };
-
 
 export const resetPassword = async (
   email: string,
@@ -187,7 +177,6 @@ export const resetPassword = async (
   return generateToken(user._id as Types.ObjectId);
 };
 
-
 export const verifyEmail = async (
   email: string,
   otp: string,
@@ -206,7 +195,6 @@ export const verifyEmail = async (
   user.verifyEmailOtpExpire = undefined;
   await user.save({ validateBeforeSave: false });
 };
-
 
 export const resendVerification = async (
   userId: Types.ObjectId,

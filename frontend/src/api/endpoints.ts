@@ -11,7 +11,6 @@ import type {
   GroupResult,
 } from "@/types";
 
-
 export const authApi = {
   register: (data: { username: string; email: string; password: string; fullName?: string }) => {
     return api.post<AuthResult>("/auth/register", data).then(r => {
@@ -72,7 +71,6 @@ export const authApi = {
   },
 };
 
-
 export const profileApi = {
   get: (userId: string) => {
     return api.get<User>(`/profile/${userId}`).then(r => {
@@ -106,7 +104,6 @@ export const profileApi = {
       });
   },
 };
-
 
 export const chatApi = {
   list: (page = 1) => {
@@ -236,7 +233,6 @@ export const chatApi = {
   },
 };
 
-
 export const messageApi = {
   send: (data: {
     chatId: string;
@@ -304,7 +300,6 @@ export const messageApi = {
   },
 };
 
-
 export const requestApi = {
   send: (userId: string) => {
     return api.post<FriendRequest>(`/requests/send/${userId}`).then(r => {
@@ -338,7 +333,6 @@ export const requestApi = {
   },
 };
 
-
 export const blockApi = {
   block: (userId: string) => {
     return api.post(`/block/${userId}`).then(r => {
@@ -363,7 +357,6 @@ export const blockApi = {
       });
   },
 };
-
 
 export const notificationApi = {
   list: () => {
@@ -397,7 +390,6 @@ export const notificationApi = {
     });
   },
 };
-
 
 export const aiApi = {
   chat: (message: string, history: { role: "user" | "model"; parts: { text: string }[] }[]) => {

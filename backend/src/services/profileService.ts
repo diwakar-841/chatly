@@ -6,7 +6,6 @@ import escapeRegex from "../utils/escapeRegex.js";
 import { AppError } from "../utils/errors.js";
 import { IUser, ProfileUpdates, PaginatedResult } from "../types/index.js";
 
-
 export const getProfile = async (
   targetUserId: string,
   requesterId: Types.ObjectId,
@@ -51,7 +50,6 @@ export const getProfile = async (
   return { user, isSelf: false, canView: true, canChat: !!accepted };
 };
 
-
 export const updateProfile = async (
   userId: Types.ObjectId,
   updates: ProfileUpdates,
@@ -77,7 +75,6 @@ export const updateProfile = async (
   );
 };
 
-
 export const updateAvatar = async (
   userId: Types.ObjectId,
   avatarUrl: string,
@@ -89,7 +86,6 @@ export const updateAvatar = async (
   ).select("-password");
 };
 
-
 export const searchUsers = async (
   query: string,
   requesterId: Types.ObjectId,
@@ -98,9 +94,7 @@ export const searchUsers = async (
   const limit = 20;
   const skip = (page - 1) * limit;
 
-  const blockedRelations = await BlockedUser.find({
-    $or: [{ blocker: requesterId }, { blocked: requesterId }],
-  });
+  const blockedRelations = await BlockedUser.find({$or: [{ blocker: requesterId }, { blocked: requesterId }],});
   const blockedIds = blockedRelations.map((b) => {
     return b.blocker.toString() === requesterId.toString()
       ? b.blocked

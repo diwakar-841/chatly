@@ -5,7 +5,6 @@ import { authApi } from "@/api/endpoints";
 import { apiError } from "@/api/client";
 import { Spinner } from "@/components/Spinner";
 
-
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
   const location = useLocation();

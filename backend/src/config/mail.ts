@@ -1,7 +1,6 @@
 import emailjs from "@emailjs/nodejs";
 import logger from "../utils/logger.js";
 
-
 emailjs.init({
   publicKey: process.env.EMAILJS_PUBLIC_KEY as string,
   privateKey: process.env.EMAILJS_PRIVATE_KEY as string,

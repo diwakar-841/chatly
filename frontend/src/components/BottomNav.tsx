@@ -12,7 +12,6 @@ const items = [
   { to: "/profile", label: "Profile", icon: User },
 ];
 
-
 export function BottomNav() {
   const {
     unreadNotifCount,

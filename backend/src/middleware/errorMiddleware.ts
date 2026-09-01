@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from "express";
 import logger from "../utils/logger.js";
 import { AppError } from "../utils/errors.js";
 
-
 export const notFound = (
   req: Request,
   res: Response,
@@ -10,7 +9,6 @@ export const notFound = (
 ): void => {
   next(new AppError(`Not Found - ${req.originalUrl}`, 404));
 };
-
 
 export const errorHandler = (
   err: AppError | Error | any,

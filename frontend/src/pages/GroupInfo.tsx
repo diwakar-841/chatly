@@ -24,7 +24,6 @@ import { useAuth } from "@/store/auth";
 import { apiError } from "@/api/client";
 import { cn } from "@/lib/utils";
 
-
 export default function GroupInfoPage() {
   const { chatId = "" } = useParams();
   const me = useAuth(s => {

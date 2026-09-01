@@ -20,7 +20,6 @@ interface AuthState {
   clear: () => void;
 }
 
-
 export const useAuth = create<AuthState>()(
   persist(
     set => {

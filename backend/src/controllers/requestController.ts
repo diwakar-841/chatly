@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from "express";
 import * as requestService from "../services/requestService.js";
 import { AuthRequest } from "../types/index.js";
 
-
 export const sendRequest = async (
   req: Request,
   res: Response,
@@ -18,7 +17,6 @@ export const sendRequest = async (
     next(err);
   }
 };
-
 
 export const respondToRequest = async (
   req: Request,
@@ -37,7 +35,6 @@ export const respondToRequest = async (
   }
 };
 
-
 export const withdrawRequest = async (
   req: Request,
   res: Response,
@@ -53,7 +50,6 @@ export const withdrawRequest = async (
     next(err);
   }
 };
-
 
 export const getRequestStatus = async (
   req: Request,
@@ -71,7 +67,6 @@ export const getRequestStatus = async (
   }
 };
 
-
 export const getPendingRequests = async (
   req: Request,
   res: Response,
@@ -87,7 +82,6 @@ export const getPendingRequests = async (
   }
 };
 
-
 export const getSentRequests = async (
   req: Request,
   res: Response,
@@ -102,7 +96,6 @@ export const getSentRequests = async (
     next(err);
   }
 };
-
 
 export const unfriend = async (
   req: Request,

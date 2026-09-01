@@ -20,7 +20,6 @@ import { disconnectSocket } from "@/lib/socket";
 import { apiError } from "@/api/client";
 import { cn } from "@/lib/utils";
 
-
 export default function ProfilePage() {
   const navigate = useNavigate();
   const { user, refreshToken, setUser, clear } = useAuth();
@@ -270,7 +269,6 @@ export default function ProfilePage() {
     </div>
   );
 }
-
 
 function Field({
   label,

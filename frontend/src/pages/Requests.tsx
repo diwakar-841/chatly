@@ -11,7 +11,6 @@ import { cn, formatRelative } from "@/lib/utils";
 import { apiError } from "@/api/client";
 import { useSocket } from "@/context/SocketContext";
 
-
 export default function RequestsPage() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<"pending" | "sent" | "invites">("pending");

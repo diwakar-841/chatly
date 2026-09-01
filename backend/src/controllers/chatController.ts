@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from "express";
 import * as chatService from "../services/chatService.js";
 import { AuthRequest } from "../types/index.js";
 
-
 export const getDM = async (
   req: Request,
   res: Response,
@@ -18,7 +17,6 @@ export const getDM = async (
     next(err);
   }
 };
-
 
 export const getUserChats = async (
   req: Request,
@@ -36,7 +34,6 @@ export const getUserChats = async (
     next(err);
   }
 };
-
 
 export const createGroup = async (
   req: Request,
@@ -64,7 +61,6 @@ export const createGroup = async (
     next(err);
   }
 };
-
 
 export const updateGroup = async (
   req: Request,
@@ -95,7 +91,6 @@ export const updateGroup = async (
   }
 };
 
-
 export const addMembers = async (
   req: Request,
   res: Response,
@@ -112,7 +107,6 @@ export const addMembers = async (
     next(err);
   }
 };
-
 
 export const removeMember = async (
   req: Request,
@@ -131,7 +125,6 @@ export const removeMember = async (
   }
 };
 
-
 export const leaveGroup = async (
   req: Request,
   res: Response,
@@ -147,7 +140,6 @@ export const leaveGroup = async (
     next(err);
   }
 };
-
 
 export const requestJoinGroup = async (
   req: Request,
@@ -165,7 +157,6 @@ export const requestJoinGroup = async (
   }
 };
 
-
 export const getJoinRequests = async (
   req: Request,
   res: Response,
@@ -181,7 +172,6 @@ export const getJoinRequests = async (
     next(err);
   }
 };
-
 
 export const handleJoinRequest = async (
   req: Request,
@@ -202,7 +192,6 @@ export const handleJoinRequest = async (
   }
 };
 
-
 export const togglePinMessage = async (
   req: Request,
   res: Response,
@@ -219,7 +208,6 @@ export const togglePinMessage = async (
     next(err);
   }
 };
-
 
 export const getMessages = async (
   req: Request,
@@ -239,7 +227,6 @@ export const getMessages = async (
   }
 };
 
-
 export const hideChatForMe = async (
   req: Request,
   res: Response,
@@ -255,7 +242,6 @@ export const hideChatForMe = async (
     next(err);
   }
 };
-
 
 export const acceptGroupInvite = async (
   req: Request,
@@ -273,7 +259,6 @@ export const acceptGroupInvite = async (
   }
 };
 
-
 export const rejectGroupInvite = async (
   req: Request,
   res: Response,
@@ -290,7 +275,6 @@ export const rejectGroupInvite = async (
   }
 };
 
-
 export const getMyGroupInvites = async (
   req: Request,
   res: Response,
@@ -305,7 +289,6 @@ export const getMyGroupInvites = async (
     next(err);
   }
 };
-
 
 export const getChatById = async (
   req: Request,
@@ -322,7 +305,6 @@ export const getChatById = async (
     next(err);
   }
 };
-
 
 export const searchGroups = async (
   req: Request,

@@ -3,7 +3,6 @@ import { SideNav } from "./SideNav";
 import { BottomNav } from "./BottomNav";
 import { AiChat } from "./AiChat";
 
-
 export function AppLayout() {
   const loc = useLocation();
   const inChat = /^\/chats\/[^/]+/.test(loc.pathname);

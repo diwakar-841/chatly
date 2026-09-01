@@ -4,7 +4,6 @@ import logger from "../utils/logger.js";
 const SERVICE_ID = process.env.EMAILJS_SERVICE_ID as string;
 const OTP_TEMPLATE_ID = process.env.EMAILJS_OTP_TEMPLATE_ID as string;
 
-
 const sendOtpEmail = async (
   to: string,
   otp: string,
@@ -29,7 +28,6 @@ const sendOtpEmail = async (
   await emailjs.send(SERVICE_ID, OTP_TEMPLATE_ID, templateParams);
 };
 
-
 export const sendPasswordResetOtp = async (
   to: string,
   otp: string,
@@ -46,7 +44,6 @@ export const sendPasswordResetOtp = async (
     };
   }
 };
-
 
 export const sendVerificationOtp = async (
   to: string,

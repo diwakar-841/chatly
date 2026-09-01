@@ -22,7 +22,6 @@ const start = async (): Promise<void> => {
 
 void start();
 
-
 const shutdown = async (signal: string): Promise<void> => {
   logger.info(`${signal} received — shutting down gracefully`);
   server.close(async () => {

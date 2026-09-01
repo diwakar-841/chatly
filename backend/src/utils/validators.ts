@@ -1,6 +1,5 @@
 import { body, query, param, ValidationChain } from "express-validator";
 
-
 export const registerValidation: ValidationChain[] = [
   body("username")
     .trim()
@@ -21,12 +20,10 @@ export const registerValidation: ValidationChain[] = [
     .withMessage("Full name too long"),
 ];
 
-
 export const loginValidation: ValidationChain[] = [
   body("email").isEmail().withMessage("Invalid email address").normalizeEmail(),
   body("password").notEmpty().withMessage("Password is required"),
 ];
-
 
 export const verifyEmailValidation: ValidationChain[] = [
   body("email").isEmail().withMessage("Invalid email address").normalizeEmail(),
@@ -36,7 +33,6 @@ export const verifyEmailValidation: ValidationChain[] = [
     .isNumeric()
     .withMessage("OTP must be numeric"),
 ];
-
 
 export const resetPasswordValidation: ValidationChain[] = [
   body("email").isEmail().withMessage("Invalid email address").normalizeEmail(),
@@ -53,7 +49,6 @@ export const resetPasswordValidation: ValidationChain[] = [
     .matches(/[0-9]/)
     .withMessage("Password must contain at least one number"),
 ];
-
 
 export const sendMessageValidation: ValidationChain[] = [
   body("chatId")
@@ -73,7 +68,6 @@ export const sendMessageValidation: ValidationChain[] = [
   body("replyTo").optional().isMongoId().withMessage("Invalid replyTo id"),
 ];
 
-
 export const createGroupValidation: ValidationChain[] = [
   body("name")
     .trim()
@@ -84,7 +78,6 @@ export const createGroupValidation: ValidationChain[] = [
   body("members").optional().isArray().withMessage("members must be an array"),
   body("members.*").optional().isMongoId().withMessage("Invalid member id"),
 ];
-
 
 export const updateProfileValidation: ValidationChain[] = [
   body("fullName")
@@ -103,7 +96,6 @@ export const updateProfileValidation: ValidationChain[] = [
     .withMessage("isPrivate must be a boolean"),
 ];
 
-
 export const searchValidation: ValidationChain[] = [
   query("q")
     .optional()
@@ -116,11 +108,9 @@ export const searchValidation: ValidationChain[] = [
     .withMessage("Page must be a positive integer"),
 ];
 
-
 export const mongoIdParam = (paramName: string): ValidationChain => {
   return param(paramName).isMongoId().withMessage(`Invalid ${paramName}`);
 };
-
 
 export const respondToRequestValidation: ValidationChain[] = [
   body("action")

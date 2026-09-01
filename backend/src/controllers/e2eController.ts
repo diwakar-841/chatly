@@ -3,7 +3,6 @@ import User from "../models/User.js";
 import { AuthRequest } from "../types/index.js";
 import { AppError } from "../utils/errors.js";
 
-
 export const updatePublicKey = async (
   req: Request,
   res: Response,
@@ -25,7 +24,6 @@ export const updatePublicKey = async (
     next(err);
   }
 };
-
 
 export const getUserPublicKey = async (
   req: Request,

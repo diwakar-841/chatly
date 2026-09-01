@@ -24,7 +24,6 @@ import logger from "./utils/logger.js";
 
 const app = express();
 
-
 const getAllowedOrigins = (): string[] => {
   return (process.env.CLIENT_URL ?? "http://localhost:5173")
     .split(",")
@@ -59,16 +58,11 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-
-
-
 app.use((req, _res, next) => {
   for (const key of ["body", "params", "query", "headers"] as const) {
     const part = req[key];
     if (part && typeof part === "object") {
-      mongoSanitize.sanitize(part as Record<string, unknown>, {
-        replaceWith: "_",
-      });
+      mongoSanitize.sanitize(part as Record<string, unknown>, {replaceWith: "_",});
     }
   }
   next();
@@ -89,7 +83,6 @@ app.use("/api/requests", requestRoutes);
 app.use("/api/block", blockRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/ai", aiRoutes);
-
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });

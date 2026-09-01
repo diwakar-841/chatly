@@ -1,11 +1,9 @@
 import { clsx, type ClassValue } from "clsx";
 import { formatDistanceToNow, format, isToday, isYesterday } from "date-fns";
 
-
 export const cn = (...inputs: ClassValue[]) => {
   return clsx(inputs);
 };
-
 
 export const formatTime = (iso?: string) => {
   if (!iso) {
@@ -13,7 +11,6 @@ export const formatTime = (iso?: string) => {
   }
   return format(new Date(iso), "HH:mm");
 };
-
 
 export const formatChatTime = (iso?: string) => {
   if (!iso) {
@@ -29,14 +26,12 @@ export const formatChatTime = (iso?: string) => {
   return format(d, "dd/MM/yy");
 };
 
-
 export const formatRelative = (iso?: string) => {
   if (!iso) {
     return "";
   }
   return formatDistanceToNow(new Date(iso), { addSuffix: true });
 };
-
 
 export const initials = (name?: string) => {
   if (!name) {

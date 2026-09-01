@@ -10,7 +10,6 @@ import { IRequest } from "../types/index.js";
 import { getOrCreateDM } from "./chatService.js";
 import Chat from "../models/Chat.js";
 
-
 export const sendRequest = async (
   senderId: Types.ObjectId,
   recipientId: string,
@@ -71,7 +70,6 @@ export const sendRequest = async (
   return request;
 };
 
-
 export const respondToRequest = async (
   requestId: string,
   userId: Types.ObjectId,
@@ -129,7 +127,6 @@ export const respondToRequest = async (
   return request;
 };
 
-
 export const withdrawRequest = async (
   requestId: string,
   senderId: Types.ObjectId,
@@ -144,7 +141,6 @@ export const withdrawRequest = async (
   }
   await request.deleteOne();
 };
-
 
 export const getRequestStatus = async (
   userId: Types.ObjectId,
@@ -193,7 +189,6 @@ export const getRequestStatus = async (
   return { status: "none", requestId: null, direction: null };
 };
 
-
 export const getPendingRequests = async (
   userId: Types.ObjectId,
 ): Promise<IRequest[]> => {
@@ -202,7 +197,6 @@ export const getPendingRequests = async (
     .sort({ createdAt: -1 });
 };
 
-
 export const getSentRequests = async (
   userId: Types.ObjectId,
 ): Promise<IRequest[]> => {
@@ -210,7 +204,6 @@ export const getSentRequests = async (
     .populate("recipient", "username fullName avatar isOnline")
     .sort({ createdAt: -1 });
 };
-
 
 export const unfriend = async (
   userId: Types.ObjectId,

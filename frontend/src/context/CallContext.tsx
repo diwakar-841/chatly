@@ -10,12 +10,9 @@ import {
 import toast from "react-hot-toast";
 import { useSocket } from "@/context/SocketContext";
 
-
 export type CallType = "audio" | "video";
 
-
 export type CallStatus = "idle" | "outgoing" | "incoming" | "connecting" | "active" | "ended";
-
 
 export interface CallPeer {
   _id: string;
@@ -49,7 +46,6 @@ interface CallContextValue {
 
 const CallContext = createContext<CallContextValue | null>(null);
 
-
 function buildIceServers(): RTCIceServer[] {
   const servers: RTCIceServer[] = [
     { urls: "stun:stun.l.google.com:19302" },
@@ -68,7 +64,6 @@ function buildIceServers(): RTCIceServer[] {
 }
 
 const ICE_SERVERS = buildIceServers();
-
 
 export function CallProvider({ children }: { children: ReactNode }) {
   const { socket } = useSocket();
@@ -426,7 +421,6 @@ export function CallProvider({ children }: { children: ReactNode }) {
     </CallContext.Provider>
   );
 }
-
 
 export function useCall(): CallContextValue {
   const ctx = useContext(CallContext);

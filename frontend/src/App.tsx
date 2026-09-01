@@ -24,7 +24,6 @@ import NotificationsPage from "@/pages/Notifications";
 import ProfilePage from "@/pages/Profile";
 import BlockedPage from "@/pages/Blocked";
 
-
 export default function App() {
   const { accessToken, setUser, clear } = useAuth();
   const [booting, setBooting] = useState(!!accessToken);

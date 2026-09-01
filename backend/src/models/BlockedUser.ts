@@ -9,7 +9,6 @@ const blockedUserSchema = new Schema<IBlockedUser>(
   { timestamps: true },
 );
 
-
 blockedUserSchema.index({ blocker: 1, blocked: 1 }, { unique: true });
 
 export default mongoose.model<IBlockedUser>("BlockedUser", blockedUserSchema);

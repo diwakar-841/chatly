@@ -14,7 +14,6 @@ const requestSchema = new Schema<IRequest>(
   { timestamps: true },
 );
 
-
 requestSchema.index({ sender: 1, recipient: 1 }, { unique: true });
 
 export default mongoose.model<IRequest>("Request", requestSchema);

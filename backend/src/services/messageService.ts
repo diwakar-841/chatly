@@ -17,7 +17,6 @@ import Request from "../models/Request.js";
 
 const MAX_MESSAGE_LENGTH = 2000;
 
-
 export const sendMessage = async ({
   chatId,
   content,
@@ -133,7 +132,6 @@ export const sendMessage = async ({
   return populated;
 };
 
-
 export const editMessage = async ({
   messageId,
   userId,
@@ -193,7 +191,6 @@ export const editMessage = async ({
   return populated;
 };
 
-
 export const deleteMessage = async (
   messageId: string,
   userId: Types.ObjectId,
@@ -226,7 +223,6 @@ export const deleteMessage = async (
 
   return message;
 };
-
 
 export const reactToMessage = async (
   messageId: string,
@@ -277,8 +273,6 @@ export const reactToMessage = async (
   return message;
 };
 
-
-
 export const markDelivered = async (
   chatId: string,
   userId: Types.ObjectId,
@@ -313,7 +307,6 @@ export const markDelivered = async (
   }
 };
 
-
 export const markRead = async (
   chatId: string,
   userId: Types.ObjectId,
@@ -328,9 +321,7 @@ export const markRead = async (
     { $addToSet: { readBy: userId } },
   );
 
-  await Chat.findByIdAndUpdate(chatId, {
-    $set: { [`unreadCounts.${userId.toString()}`]: 0 },
-  });
+  await Chat.findByIdAndUpdate(chatId, {$set: { [`unreadCounts.${userId.toString()}`]: 0 },});
 
   try {
     const io = getIO();
@@ -349,7 +340,6 @@ export const markRead = async (
     );
   }
 };
-
 
 export const clearChat = async (
   chatId: string,

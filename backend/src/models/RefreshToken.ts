@@ -13,7 +13,6 @@ const refreshTokenSchema = new Schema<IRefreshToken>({
   createdAt: { type: Date, default: Date.now },
 });
 
-
 refreshTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export default mongoose.model<IRefreshToken>(

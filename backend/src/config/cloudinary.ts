@@ -15,7 +15,6 @@ export interface UploadOptions {
   transformation?: object[];
 }
 
-
 export function uploadToCloudinary(
   buffer: Buffer,
   options: UploadOptions,

@@ -7,7 +7,6 @@ interface GeminiMessage {
   parts: { text: string }[];
 }
 
-
 export const aiChat = async (
   req: AuthRequest,
   res: Response,

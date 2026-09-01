@@ -9,7 +9,6 @@ import { Spinner } from "@/components/Spinner";
 import { apiError } from "@/api/client";
 import { cn } from "@/lib/utils";
 
-
 export default function NewGroupPage() {
   const navigate = useNavigate();
   const [name, setName] = useState("");

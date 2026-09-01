@@ -6,7 +6,6 @@ import { authApi } from "@/api/endpoints";
 import { apiError } from "@/api/client";
 import { Spinner } from "@/components/Spinner";
 
-
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");

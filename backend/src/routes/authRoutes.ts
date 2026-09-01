@@ -50,7 +50,6 @@ router.post(
 router.post("/resend-verification", protect, resendVerification);
 router.get("/me", protect, getMe);
 
-
 router.put("/public-key", protect, updatePublicKey);
 router.get("/public-key/:userId", protect, getUserPublicKey);
 

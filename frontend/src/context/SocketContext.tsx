@@ -29,7 +29,6 @@ const SocketContext = createContext<Ctx>({
   removeOnlineUser: () => {},
 });
 
-
 export function SocketProvider({ children }: { children: ReactNode }) {
   const token = useAuth(s => {
     return s.accessToken;
@@ -172,7 +171,6 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     </SocketContext.Provider>
   );
 }
-
 
 export const useSocket = () => {
   return useContext(SocketContext);

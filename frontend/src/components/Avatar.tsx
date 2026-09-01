@@ -8,7 +8,6 @@ interface Props {
   className?: string;
 }
 
-
 export function Avatar({ src, name, size = 44, online, className }: Props) {
   return (
     <div className={cn("relative shrink-0", className)} style={{ width: size, height: size }}>

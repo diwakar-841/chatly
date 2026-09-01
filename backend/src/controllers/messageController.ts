@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from "express";
 import * as messageService from "../services/messageService.js";
 import { AuthRequest } from "../types/index.js";
 
-
 function resolveType(
   file: Express.Multer.File | undefined,
   bodyType?: string,
@@ -15,7 +14,6 @@ function resolveType(
   }
   return "text";
 }
-
 
 export const sendMessage = async (
   req: Request,
@@ -57,7 +55,6 @@ export const sendMessage = async (
   }
 };
 
-
 export const editMessage = async (
   req: Request,
   res: Response,
@@ -82,7 +79,6 @@ export const editMessage = async (
   }
 };
 
-
 export const deleteMessage = async (
   req: Request,
   res: Response,
@@ -98,7 +94,6 @@ export const deleteMessage = async (
     next(err);
   }
 };
-
 
 export const reactToMessage = async (
   req: Request,
@@ -117,7 +112,6 @@ export const reactToMessage = async (
   }
 };
 
-
 export const markRead = async (
   req: Request,
   res: Response,
@@ -134,7 +128,6 @@ export const markRead = async (
   }
 };
 
-
 export const clearChat = async (
   req: Request,
   res: Response,
@@ -147,9 +140,7 @@ export const clearChat = async (
       (req as AuthRequest).user._id,
       forBoth,
     );
-    res.json({
-      message: forBoth ? "Chat cleared for everyone" : "Chat cleared for you",
-    });
+    res.json({message: forBoth ? "Chat cleared for everyone" : "Chat cleared for you",});
   } catch (err) {
     next(err);
   }

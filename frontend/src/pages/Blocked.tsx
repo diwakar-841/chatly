@@ -9,14 +9,12 @@ import { EmptyState } from "@/components/EmptyState";
 import { Spinner } from "@/components/Spinner";
 import { apiError } from "@/api/client";
 
-
 interface BlockedUserEntry {
   _id: string;
   blocker: string;
   blocked: User;
   createdAt: string;
 }
-
 
 export default function BlockedPage() {
   const navigate = useNavigate();

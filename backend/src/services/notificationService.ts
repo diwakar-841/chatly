@@ -3,7 +3,6 @@ import Notification from "../models/Notification.js";
 import { AppError } from "../utils/errors.js";
 import { INotification } from "../types/index.js";
 
-
 export const getNotifications = async (
   userId: Types.ObjectId,
   page = 1,
@@ -17,14 +16,12 @@ export const getNotifications = async (
     .limit(limit);
 };
 
-
 export const markAllRead = async (userId: Types.ObjectId): Promise<void> => {
   await Notification.updateMany(
     { recipient: userId, isRead: false },
     { isRead: true },
   );
 };
-
 
 export const markOneRead = async (
   notificationId: string,
@@ -37,13 +34,11 @@ export const markOneRead = async (
   );
 };
 
-
 export const getUnreadCount = async (
   userId: Types.ObjectId,
 ): Promise<number> => {
   return Notification.countDocuments({ recipient: userId, isRead: false });
 };
-
 
 export const deleteOne = async (
   notificationId: string,
@@ -57,7 +52,6 @@ export const deleteOne = async (
     throw new AppError("Notification not found", 404);
   }
 };
-
 
 export const deleteAll = async (userId: Types.ObjectId): Promise<void> => {
   await Notification.deleteMany({ recipient: userId });

@@ -3,9 +3,7 @@ import { useAuth } from "@/store/auth";
 
 const baseURL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-
 export const api = axios.create({ baseURL });
-
 
 api.interceptors.request.use(config => {
   const token = useAuth.getState().accessToken;
@@ -15,9 +13,7 @@ api.interceptors.request.use(config => {
   return config;
 });
 
-
 let refreshing: Promise<string | null> | null = null;
-
 
 async function doRefresh(): Promise<string | null> {
   const { refreshToken, setTokens, clear } = useAuth.getState();
@@ -33,7 +29,6 @@ async function doRefresh(): Promise<string | null> {
     return null;
   }
 }
-
 
 api.interceptors.response.use(
   r => {
@@ -56,7 +51,6 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
-
 
 export function apiError(e: unknown, fallback = "Something went wrong"): string {
   const err = e as AxiosError<{ message?: string; errors?: { msg: string }[] }> | undefined;

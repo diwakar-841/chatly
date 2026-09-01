@@ -42,7 +42,6 @@ const mediaMulter = multer({
   },
 });
 
-
 function makeImageUpload(field: string) {
   return (req: Request, res: Response, next: NextFunction): void => {
     imageMulter.single(field)(req, res, async (err) => {
@@ -68,7 +67,6 @@ function makeImageUpload(field: string) {
     });
   };
 }
-
 
 function makeMediaUpload(field: string) {
   return (req: Request, res: Response, next: NextFunction): void => {

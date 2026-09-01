@@ -10,9 +10,7 @@ interface Message {
   text: string;
 }
 
-
 const HISTORY_WINDOW = 20;
-
 
 export function AiChat() {
   const [open, setOpen] = useState(false);

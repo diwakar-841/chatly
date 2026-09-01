@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from "express";
 import * as notificationService from "../services/notificationService.js";
 import { AuthRequest } from "../types/index.js";
 
-
 export const getNotifications = async (
   req: Request,
   res: Response,
@@ -20,7 +19,6 @@ export const getNotifications = async (
   }
 };
 
-
 export const markAllRead = async (
   req: Request,
   res: Response,
@@ -33,7 +31,6 @@ export const markAllRead = async (
     next(err);
   }
 };
-
 
 export const markOneRead = async (
   req: Request,
@@ -51,7 +48,6 @@ export const markOneRead = async (
   }
 };
 
-
 export const getUnreadCount = async (
   req: Request,
   res: Response,
@@ -66,7 +62,6 @@ export const getUnreadCount = async (
     next(err);
   }
 };
-
 
 export const deleteOne = async (
   req: Request,
@@ -83,7 +78,6 @@ export const deleteOne = async (
     next(err);
   }
 };
-
 
 export const deleteAll = async (
   req: Request,

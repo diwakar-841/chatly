@@ -14,7 +14,6 @@ import { getOrCreateKeyPair, deriveSharedSecret, decryptMessage } from "@/utils/
 
 type FilterTab = "all" | "unread" | "groups" | "blocked";
 
-
 export default function ChatsPage() {
   const me = useAuth(s => {
     return s.user;

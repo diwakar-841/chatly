@@ -8,7 +8,6 @@ import { useAuth } from "@/store/auth";
 import { disconnectSocket } from "@/lib/socket";
 import { Spinner } from "@/components/Spinner";
 
-
 export default function VerifyEmailPage() {
   const navigate = useNavigate();
   const storedUser = useAuth(s => {

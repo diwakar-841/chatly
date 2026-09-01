@@ -10,7 +10,6 @@ interface AuthenticatedSocket extends Socket {
 
 type CallType = "audio" | "video";
 
-
 interface RTCSessionDescriptionInitLike {
   type: string;
   sdp?: string;
@@ -22,7 +21,6 @@ interface CallPayload {
   callType: CallType;
   offer?: RTCSessionDescriptionInitLike;
 }
-
 
 const validatePeer = async (
   meId: string,
@@ -41,7 +39,6 @@ const validatePeer = async (
   ]);
   return Boolean(chat) && !block;
 };
-
 
 export default (io: Server, socket: AuthenticatedSocket): void => {
   const myId = socket.user._id.toString();

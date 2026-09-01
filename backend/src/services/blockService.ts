@@ -7,7 +7,6 @@ import { IBlockedUser } from "../types/index.js";
 import { getIO } from "../config/socket.js";
 import logger from "../utils/logger.js";
 
-
 export const blockUser = async (
   blockerId: Types.ObjectId,
   blockedId: string,
@@ -55,7 +54,6 @@ export const blockUser = async (
   return block;
 };
 
-
 export const unblockUser = async (
   blockerId: Types.ObjectId,
   blockedId: string,
@@ -92,9 +90,7 @@ export const unblockUser = async (
       members: { $all: [blockerId, blockedId] },
     });
     if (chat) {
-      await Chat.findByIdAndUpdate(chat._id, {
-        $pull: { hiddenBy: blockerId },
-      });
+      await Chat.findByIdAndUpdate(chat._id, {$pull: { hiddenBy: blockerId },});
       chat.members.forEach((memberId) => {
         io.to(memberId.toString()).emit("chat:status_changed", {
           chatId: chat._id.toString(),
@@ -110,7 +106,6 @@ export const unblockUser = async (
   return result;
 };
 
-
 export const getBlockedUsers = async (
   userId: Types.ObjectId,
 ): Promise<IBlockedUser[]> => {
@@ -118,7 +113,6 @@ export const getBlockedUsers = async (
     .populate("blocked", "username fullName avatar")
     .sort({ createdAt: -1 });
 };
-
 
 export const isBlocked = async (
   blockerId: Types.ObjectId,
@@ -130,7 +124,6 @@ export const isBlocked = async (
   });
   return !!exists;
 };
-
 
 export const checkBlockStatus = async (
   viewerId: Types.ObjectId,

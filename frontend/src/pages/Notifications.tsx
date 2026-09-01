@@ -19,7 +19,6 @@ import { formatRelative, cn } from "@/lib/utils";
 import { apiError } from "@/api/client";
 import { useSocket } from "@/context/SocketContext";
 
-
 function NotifIcon({ type }: { type: Notification["type"] }) {
   const cls = "w-4 h-4";
   if (type === "request") {
@@ -42,7 +41,6 @@ function NotifIcon({ type }: { type: Notification["type"] }) {
   }
   return <AlertCircle className={cls} />;
 }
-
 
 export default function NotificationsPage() {
   const [items, setItems] = useState<Notification[]>([]);

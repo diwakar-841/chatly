@@ -10,9 +10,7 @@ const options: swaggerJsdoc.Options = {
     },
     servers: [{ url: "/api" }],
     components: {
-      securitySchemes: {
-        bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
-      },
+      securitySchemes: {bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },},
       schemas: {
         Error: { type: "object", properties: { message: { type: "string" } } },
         User: {

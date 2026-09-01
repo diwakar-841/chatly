@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from "express";
 import * as profileService from "../services/profileService.js";
 import { AuthRequest, ProfileUpdates } from "../types/index.js";
 
-
 export const getProfile = async (
   req: Request,
   res: Response,
@@ -19,7 +18,6 @@ export const getProfile = async (
   }
 };
 
-
 export const updateProfile = async (
   req: Request,
   res: Response,
@@ -35,7 +33,6 @@ export const updateProfile = async (
     next(err);
   }
 };
-
 
 export const updateAvatar = async (
   req: Request,
@@ -57,7 +54,6 @@ export const updateAvatar = async (
     next(err);
   }
 };
-
 
 export const searchUsers = async (
   req: Request,

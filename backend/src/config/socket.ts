@@ -18,7 +18,6 @@ interface AuthenticatedSocket extends Socket {
 
 let io: Server;
 
-
 const getAllowedOrigins = (): string[] => {
   return (process.env.CLIENT_URL ?? "http://localhost:5173")
     .split(",")
@@ -27,16 +26,13 @@ const getAllowedOrigins = (): string[] => {
     });
 };
 
-
 const getExcludedFromPresence = async (
   userId: string,
 ): Promise<Set<string>> => {
   const excluded = new Set<string>();
 
   const [blocks, dmChats, friendships] = await Promise.all([
-    BlockedUser.find({
-      $or: [{ blocker: userId }, { blocked: userId }],
-    }).select("blocker blocked"),
+    BlockedUser.find({$or: [{ blocker: userId }, { blocked: userId }],}).select("blocker blocked"),
     Chat.find({ isGroup: false, members: userId }).select("members"),
     Request.find({
       $or: [
@@ -73,7 +69,6 @@ const getExcludedFromPresence = async (
 
   return excluded;
 };
-
 
 export const initSocket = (server: HttpServer): Server => {
   io = new Server(server, {
@@ -198,7 +193,6 @@ export const initSocket = (server: HttpServer): Server => {
 
   return io;
 };
-
 
 export const getIO = (): Server => {
   if (!io) {

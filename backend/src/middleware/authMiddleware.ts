@@ -4,7 +4,6 @@ import User from "../models/User.js";
 import { AuthRequest } from "../types/index.js";
 import { AppError } from "../utils/errors.js";
 
-
 export const protect = async (
   req: Request,
   res: Response,

@@ -19,12 +19,10 @@ import { useAuth } from "@/store/auth";
 import { apiError } from "@/api/client";
 import { useSocket } from "@/context/SocketContext";
 
-
 interface ProfileData extends User {
   canView?: boolean;
   canChat?: boolean;
 }
-
 
 export default function UserProfilePage() {
   const { userId = "" } = useParams();

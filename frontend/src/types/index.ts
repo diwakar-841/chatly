@@ -1,4 +1,3 @@
-
 export interface User {
   _id: string;
   username: string;
@@ -17,19 +16,16 @@ export interface User {
   publicKey?: string;
 }
 
-
 export interface AuthResult {
   accessToken: string;
   refreshToken: string;
   user: User;
 }
 
-
 export interface Reaction {
   user: string;
   emoji: string;
 }
-
 
 export interface Message {
   _id: string;
@@ -56,7 +52,6 @@ export interface Message {
   updatedAt: string;
 }
 
-
 export interface Chat {
   _id: string;
   isGroup: boolean;
@@ -79,7 +74,6 @@ export interface Chat {
   createdAt: string;
 }
 
-
 export interface GroupResult {
   _id: string;
   name: string;
@@ -92,7 +86,6 @@ export interface GroupResult {
   isInvited: boolean;
 }
 
-
 export interface FriendRequest {
   _id: string;
   sender: User;
@@ -101,9 +94,7 @@ export interface FriendRequest {
   createdAt: string;
 }
 
-
 export type RequestStatus = "none" | "pending_sent" | "pending_received" | "accepted" | "blocked";
-
 
 export interface Notification {
   _id: string;
@@ -122,7 +113,6 @@ export interface Notification {
   link?: string;
   createdAt: string;
 }
-
 
 export interface PaginatedResult<T> {
   data: T[];
