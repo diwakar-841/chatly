@@ -15,28 +15,28 @@ const items = [
   { to: "/profile", icon: User, label: "Profile" },
 ];
 
-/**
- * Desktop-only vertical side navigation. Displays badge counts from
- * SocketContext and handles logout by revoking the refresh token,
- * disconnecting the socket, and clearing local auth state.
- */
+
 export function SideNav() {
   const { refreshToken, clear } = useAuth();
   const { unreadNotifCount, pendingRequestCount, groupInviteCount } = useSocket();
 
-  /** Returns the badge count for a given nav item path. */
+  
   const badge = (to: string) => {
-    if (to === "/notifications") return unreadNotifCount;
-    if (to === "/requests") return pendingRequestCount + groupInviteCount;
+    if (to === "/notifications") {
+      return unreadNotifCount;
+    }
+    if (to === "/requests") {
+      return pendingRequestCount + groupInviteCount;
+    }
     return 0;
   };
 
-  /** Calls the logout API (best-effort), then disconnects and clears local state. */
+  
   const logout = async () => {
     try {
       await authApi.logout(refreshToken || undefined);
     } catch {
-      /* Logout is best-effort; always clear local state */
+      
     }
     disconnectSocket();
     clear();
@@ -57,10 +57,14 @@ export function SideNav() {
               key={to}
               to={to}
               title={label}
-              className={({ isActive }) =>
-                cn("relative flex items-center justify-center h-12 rounded-lg transition",
-                  isActive ? "bg-accent/15 text-accent" : "text-muted hover:text-white hover:bg-bg-panel")
-              }
+              className={({ isActive }) => {
+                return cn(
+                  "relative flex items-center justify-center h-12 rounded-lg transition",
+                  isActive
+                    ? "bg-accent/15 text-accent"
+                    : "text-muted hover:text-white hover:bg-bg-panel"
+                );
+              }}
             >
               <div className="relative">
                 <Icon className="w-5 h-5" />

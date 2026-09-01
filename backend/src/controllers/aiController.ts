@@ -1,50 +1,60 @@
-import { Response, NextFunction } from 'express';
-import { AuthRequest } from '../types/index.js';
-import { AppError } from '../utils/errors.js';
+import { Response, NextFunction } from "express";
+import { AuthRequest } from "../types/index.js";
+import { AppError } from "../utils/errors.js";
 
 interface GeminiMessage {
-  role: 'user' | 'model';
+  role: "user" | "model";
   parts: { text: string }[];
 }
 
-/**
- * Proxies a conversational message to the Gemini 2.5 Flash Lite API, passing
- * the full conversation history so the model has prior context. Returns the
- * model's text reply.
- */
-export const aiChat = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const { message, history } = req.body as { message: string; history?: GeminiMessage[]; };
 
-    if (!message?.trim()) return next(new AppError('Message is required', 400));
+export const aiChat = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const { message, history } = req.body as {
+      message: string;
+      history?: GeminiMessage[];
+    };
+
+    if (!message?.trim()) {
+      return next(new AppError("Message is required", 400));
+    }
 
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return next(new AppError('AI service not configured', 500));
+    if (!apiKey) {
+      return next(new AppError("AI service not configured", 500));
+    }
 
     const contents: GeminiMessage[] = [
       ...(history || []),
-      { role: 'user', parts: [{ text: message }] },
+      { role: "user", parts: [{ text: message }] },
     ];
 
     const response = await fetch(
-  `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`,
       {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contents }),
-      }
+      },
     );
 
     if (!response.ok) {
       const err = await response.json();
-      return next(new AppError(err?.error?.message || 'Gemini API error', 502));
+      return next(new AppError(err?.error?.message || "Gemini API error", 502));
     }
 
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       candidates: { content: { parts: { text: string }[] } }[];
     };
 
-    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response from AI.';
+    const reply =
+      data.candidates?.[0]?.content?.parts?.[0]?.text || "No response from AI.";
     res.json({ reply });
-  } catch (error) { next(error); }
+  } catch (error) {
+    next(error);
+  }
 };

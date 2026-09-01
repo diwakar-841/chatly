@@ -1,8 +1,10 @@
 import type { LucideIcon } from "lucide-react";
 
-/** Displays a centred icon, heading, and optional description for empty list states. */
+
 export function EmptyState({
-  icon: Icon, title, description,
+  icon: Icon,
+  title,
+  description,
 }: {
   icon: LucideIcon;
   title: string;

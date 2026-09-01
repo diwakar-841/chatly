@@ -12,41 +12,59 @@ const items = [
   { to: "/profile", label: "Profile", icon: User },
 ];
 
-/**
- * Mobile-only bottom navigation bar. Polls unread counts every 60 seconds
- * and listens for socket-driven badge updates via SocketContext.
- */
+
 export function BottomNav() {
   const {
-    unreadNotifCount, pendingRequestCount, groupInviteCount,
-    setUnreadNotifCount, setPendingRequestCount, setGroupInviteCount,
+    unreadNotifCount,
+    pendingRequestCount,
+    groupInviteCount,
+    setUnreadNotifCount,
+    setPendingRequestCount,
+    setGroupInviteCount,
   } = useSocket();
 
-  /** Fetches initial badge counts on mount and refreshes them every minute. */
+  
   useEffect(() => {
     let mounted = true;
     const load = async () => {
       try {
         const [n, r, inv] = await Promise.all([
-          notificationApi.unreadCount().catch(() => ({ count: 0 })),
-          requestApi.pending().catch(() => []),
-          chatApi.getMyInvites().catch(() => []),
+          notificationApi.unreadCount().catch(() => {
+            return { count: 0 };
+          }),
+          requestApi.pending().catch(() => {
+            return [];
+          }),
+          chatApi.getMyInvites().catch(() => {
+            return [];
+          }),
         ]);
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
         setUnreadNotifCount(n.count || 0);
         setPendingRequestCount(Array.isArray(r) ? r.length : 0);
         setGroupInviteCount(Array.isArray(inv) ? inv.length : 0);
-      } catch {/* ignore */}
+      } catch {
+        
+      }
     };
     load();
     const id = setInterval(load, 60000);
-    return () => { mounted = false; clearInterval(id); };
+    return () => {
+      mounted = false;
+      clearInterval(id);
+    };
   }, [setUnreadNotifCount, setPendingRequestCount, setGroupInviteCount]);
 
-  /** Returns the badge count relevant to the given nav path. */
+  
   const badge = (to: string) => {
-    if (to === "/notifications") return unreadNotifCount;
-    if (to === "/requests") return pendingRequestCount + groupInviteCount;
+    if (to === "/notifications") {
+      return unreadNotifCount;
+    }
+    if (to === "/requests") {
+      return pendingRequestCount + groupInviteCount;
+    }
     return 0;
   };
 
@@ -59,24 +77,33 @@ export function BottomNav() {
             <NavLink
               key={to}
               to={to}
-              className={({ isActive }) =>
-                cn("flex flex-col items-center justify-center py-2.5 gap-1 text-xs transition-colors relative",
-                  isActive ? "text-accent" : "text-muted hover:text-white")
-              }
+              className={({ isActive }) => {
+                return cn(
+                  "flex flex-col items-center justify-center py-2.5 gap-1 text-xs transition-colors relative",
+                  isActive ? "text-accent" : "text-muted hover:text-white"
+                );
+              }}
             >
-              {({ isActive }) => (
-                <>
-                  <div className={cn("relative px-3 py-1 rounded-full transition", isActive && "bg-accent/15")}>
-                    <Icon className="w-5 h-5" />
-                    {b > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-accent text-black text-[10px] font-bold rounded-full min-w-4 h-4 px-1 flex items-center justify-center">
-                        {b > 99 ? "99+" : b}
-                      </span>
-                    )}
-                  </div>
-                  <span className="font-medium">{label}</span>
-                </>
-              )}
+              {({ isActive }) => {
+                return (
+                  <>
+                    <div
+                      className={cn(
+                        "relative px-3 py-1 rounded-full transition",
+                        isActive && "bg-accent/15"
+                      )}
+                    >
+                      <Icon className="w-5 h-5" />
+                      {b > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-accent text-black text-[10px] font-bold rounded-full min-w-4 h-4 px-1 flex items-center justify-center">
+                          {b > 99 ? "99+" : b}
+                        </span>
+                      )}
+                    </div>
+                    <span className="font-medium">{label}</span>
+                  </>
+                );
+              }}
             </NavLink>
           );
         })}

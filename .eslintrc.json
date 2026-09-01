@@ -1,0 +1,9 @@
+{
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint"],
+  "rules": {
+    "curly": ["error", "all"],
+    "arrow-body-style": ["error", "always"],
+    "object-curly-newline": ["error", { "multiline": true }]
+  }
+}

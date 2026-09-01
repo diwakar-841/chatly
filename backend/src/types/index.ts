@@ -1,5 +1,5 @@
-import { Request } from 'express';
-import { Document, Types } from 'mongoose';
+import { Request } from "express";
+import { Document, Types } from "mongoose";
 
 export interface IUser extends Document {
   _id: Types.ObjectId;
@@ -19,7 +19,7 @@ export interface IUser extends Document {
   experience: IExperience[];
   resetPasswordOtp?: string;
   resetPasswordOtpExpire?: Date;
-  /** NaCl Curve25519 public key (base64) for E2E encryption. */
+  
   publicKey?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -62,7 +62,7 @@ export interface IMessage extends Document {
   chat: Types.ObjectId;
   sender: Types.ObjectId;
   content: string;
-  type: 'text' | 'image' | 'file';
+  type: "text" | "image" | "file";
   mediaUrl: string;
   reactions: IReaction[];
   readBy: Types.ObjectId[];
@@ -70,13 +70,13 @@ export interface IMessage extends Document {
   replyTo: Types.ObjectId | null;
   deletedFor?: Types.ObjectId[];
   isDeleted: boolean;
-  /** True when the sender has edited this message at least once. */
+  
   isEdited: boolean;
-  /** Timestamp of the last edit. */
+  
   editedAt?: Date | null;
-  /** Base64-encoded NaCl box ciphertext (E2E DM messages). Empty for unencrypted or group messages. */
+  
   encryptedContent: string;
-  /** Base64-encoded 24-byte nonce paired with encryptedContent. */
+  
   nonce: string;
   createdAt: Date;
   updatedAt: Date;
@@ -113,13 +113,13 @@ export interface INotification extends Document {
   recipient: Types.ObjectId;
   sender?: Types.ObjectId;
   type:
-    | 'message'
-    | 'request'
-    | 'request_accepted'
-    | 'group_add'
-    | 'group_join_request'
-    | 'group_invite'
-    | 'system';
+    | "message"
+    | "request"
+    | "request_accepted"
+    | "group_add"
+    | "group_join_request"
+    | "group_invite"
+    | "system";
   message: string;
   isRead: boolean;
   link: string;
@@ -131,7 +131,7 @@ export interface IRequest extends Document {
   _id: Types.ObjectId;
   sender: Types.ObjectId;
   recipient: Types.ObjectId;
-  status: 'pending' | 'accepted' | 'rejected';
+  status: "pending" | "accepted" | "rejected";
   createdAt: Date;
   updatedAt: Date;
 }
@@ -179,14 +179,14 @@ export interface CreateGroupInput {
 export interface SendMessageInput {
   chatId: string;
   content?: string;
-  type?: 'text' | 'image' | 'file';
+  type?: "text" | "image" | "file";
   replyTo?: string;
   mediaUrl?: string;
   senderId: Types.ObjectId;
   senderUsername: string;
-  /** Base64 NaCl ciphertext — present only for E2E-encrypted DM messages. */
+  
   encryptedContent?: string;
-  /** Base64 nonce paired with encryptedContent. */
+  
   nonce?: string;
 }
 
@@ -194,9 +194,9 @@ export interface EditMessageInput {
   messageId: string;
   userId: Types.ObjectId;
   content?: string;
-  /** Base64 NaCl ciphertext for E2E-encrypted edits. */
+  
   encryptedContent?: string;
-  /** Base64 nonce paired with encryptedContent. */
+  
   nonce?: string;
 }
 
@@ -225,7 +225,7 @@ export interface Chat {
   members: IUser[];
   admins?: string[];
   creator?: string;
-  lastMessage?: Pick<IMessage, '_id' | 'content' | 'type' | 'createdAt'> | null;
+  lastMessage?: Pick<IMessage, "_id" | "content" | "type" | "createdAt"> | null;
   pinnedMessages?: string[];
   joinRequests?: IUser[];
   unreadCount?: number;

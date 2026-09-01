@@ -5,11 +5,7 @@ import { authApi } from "@/api/endpoints";
 import { apiError } from "@/api/client";
 import { Spinner } from "@/components/Spinner";
 
-/**
- * Password-reset page. Takes the emailed OTP plus a new password. Email is
- * pre-filled via nav state when arriving from Forgot Password, otherwise the
- * user enters it directly (e.g. if they landed here straight from the app).
- */
+
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -19,11 +15,15 @@ export default function ResetPasswordPage() {
   const [pw, setPw] = useState("");
   const [loading, setLoading] = useState(false);
 
-  /** Validates the minimum length, calls the API, then navigates to login. */
+  
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pw.length < 8) return toast.error("Min 8 characters");
-    if (otp.length !== 6) return toast.error("Enter the 6-digit code");
+    if (pw.length < 8) {
+      return toast.error("Min 8 characters");
+    }
+    if (otp.length !== 6) {
+      return toast.error("Enter the 6-digit code");
+    }
     setLoading(true);
     try {
       await authApi.reset(email, otp, pw);
@@ -51,7 +51,9 @@ export default function ResetPasswordPage() {
               className="input"
               placeholder="you@example.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={e => {
+                return setEmail(e.target.value);
+              }}
             />
           )}
           <input
@@ -63,7 +65,9 @@ export default function ResetPasswordPage() {
             className="input text-center tracking-[0.5em]"
             placeholder="------"
             value={otp}
-            onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            onChange={e => {
+              return setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
+            }}
           />
           <input
             type="password"
@@ -71,13 +75,18 @@ export default function ResetPasswordPage() {
             className="input"
             placeholder="New password"
             value={pw}
-            onChange={(e) => setPw(e.target.value)}
+            onChange={e => {
+              return setPw(e.target.value);
+            }}
           />
           <button disabled={loading} className="btn-primary w-full">
             {loading ? <Spinner /> : "Reset password"}
           </button>
         </form>
-        <Link to="/forgot-password" className="text-muted hover:text-white text-xs mt-4 inline-block">
+        <Link
+          to="/forgot-password"
+          className="text-muted hover:text-white text-xs mt-4 inline-block"
+        >
           Didn't get a code? Request a new one
         </Link>
       </div>

@@ -1,11 +1,4 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useCallback,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import type { Socket } from "socket.io-client";
 import { connectSocket, disconnectSocket } from "@/lib/socket";
 import { useAuth } from "@/store/auth";
@@ -20,7 +13,7 @@ interface Ctx {
   setPendingRequestCount: (n: number | ((prev: number) => number)) => void;
   setGroupInviteCount: (n: number | ((prev: number) => number)) => void;
 
-  /** Immediately removes a user from the online set (e.g. after block or unfriend). */
+  
   removeOnlineUser: (userId: string) => void;
 }
 
@@ -36,14 +29,11 @@ const SocketContext = createContext<Ctx>({
   removeOnlineUser: () => {},
 });
 
-/**
- * Provides a single Socket.IO connection for the entire app.
- * Connects when an access token is present, disconnects on logout.
- * Maintains a live set of online user IDs and global badge counters
- * for notifications, requests, and group invites.
- */
+
 export function SocketProvider({ children }: { children: ReactNode }) {
-  const token = useAuth((s) => s.accessToken);
+  const token = useAuth(s => {
+    return s.accessToken;
+  });
 
   const [socket, setSocket] = useState<Socket | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
@@ -51,23 +41,20 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const [pendingRequestCount, setPendingRequestCount] = useState(0);
   const [groupInviteCount, setGroupInviteCount] = useState(0);
 
-  const setUnread = useCallback(
-    (n: number | ((prev: number) => number)) => setUnreadNotifCount(n),
-    []
-  );
+  const setUnread = useCallback((n: number | ((prev: number) => number)) => {
+    return setUnreadNotifCount(n);
+  }, []);
 
-  const setPending = useCallback(
-    (n: number | ((prev: number) => number)) => setPendingRequestCount(n),
-    []
-  );
+  const setPending = useCallback((n: number | ((prev: number) => number)) => {
+    return setPendingRequestCount(n);
+  }, []);
 
-  const setInvites = useCallback(
-    (n: number | ((prev: number) => number)) => setGroupInviteCount(n),
-    []
-  );
+  const setInvites = useCallback((n: number | ((prev: number) => number)) => {
+    return setGroupInviteCount(n);
+  }, []);
 
   const removeOnlineUser = useCallback((userId: string) => {
-    setOnlineUsers((prev) => {
+    setOnlineUsers(prev => {
       const next = new Set(prev);
       next.delete(userId);
       return next;
@@ -90,66 +77,55 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     };
 
     const onOnline = ({ userId }: { userId: string }) => {
-      setOnlineUsers((prev) => new Set(prev).add(userId));
+      setOnlineUsers(prev => {
+        return new Set(prev).add(userId);
+      });
     };
 
     const onOffline = ({ userId }: { userId: string }) => {
-      setOnlineUsers((prev) => {
+      setOnlineUsers(prev => {
         const next = new Set(prev);
         next.delete(userId);
         return next;
       });
     };
 
-    /**
-     * Clears the online set on reconnect;
-     * the server will re-send `user:online_contacts`.
-     */
+    
     const onReconnect = () => {
       setOnlineUsers(new Set());
     };
 
     const onNotification = (notif: { type?: string }) => {
       if (notif?.type !== "message") {
-        setUnreadNotifCount((c) => c + 1);
+        setUnreadNotifCount(c => {
+          return c + 1;
+        });
       }
 
       if (notif?.type === "group_invite") {
-        setGroupInviteCount((c) => c + 1);
-      }
-    };
-
-    const onRequest = () => {
-      setPendingRequestCount((c) => c + 1);
-    };
-
-    /**
-     * Automatically mark messages as delivered when received.
-     */
-    const onIncomingMessage = (msg: { chat?: string }) => {
-      if (msg?.chat) {
-        s.emit("message:delivered", {
-          chatId: msg.chat,
+        setGroupInviteCount(c => {
+          return c + 1;
         });
       }
     };
 
-    /**
-     * Handles block/unblock/unfriend presence changes.
-     * For "blocked" and "unfriended" the actor is removed
-     * from onlineUsers immediately so the green dot disappears
-     * across all pages without a re-fetch.
-     */
-    const onStatusChanged = ({
-      status,
-      by,
-    }: {
-      chatId: string;
-      status: string;
-      by: string;
-    }) => {
+    const onRequest = () => {
+      setPendingRequestCount(c => {
+        return c + 1;
+      });
+    };
+
+    
+    const onIncomingMessage = (msg: { chat?: string }) => {
+      if (msg?.chat) {
+        s.emit("message:delivered", { chatId: msg.chat });
+      }
+    };
+
+    
+    const onStatusChanged = ({ status, by }: { chatId: string; status: string; by: string }) => {
       if (status === "blocked" || status === "unfriended") {
-        setOnlineUsers((prev) => {
+        setOnlineUsers(prev => {
           const next = new Set(prev);
           next.delete(by);
           return next;
@@ -197,5 +173,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** Hook for accessing the socket context from any child component. */
-export const useSocket = () => useContext(SocketContext);
+
+export const useSocket = () => {
+  return useContext(SocketContext);
+};

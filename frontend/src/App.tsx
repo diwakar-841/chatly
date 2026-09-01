@@ -24,36 +24,71 @@ import NotificationsPage from "@/pages/Notifications";
 import ProfilePage from "@/pages/Profile";
 import BlockedPage from "@/pages/Blocked";
 
-/**
- * Root application component. On mount, re-validates an existing access token
- * by fetching the current user; clears auth state on failure. Renders a full-screen
- * loader until the initial auth check resolves.
- */
+
 export default function App() {
   const { accessToken, setUser, clear } = useAuth();
   const [booting, setBooting] = useState(!!accessToken);
 
   useEffect(() => {
-    if (!accessToken) { setBooting(false); return; }
-    authApi.me().then(setUser).catch(() => clear()).finally(() => setBooting(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!accessToken) {
+      setBooting(false);
+      return;
+    }
+    authApi
+      .me()
+      .then(setUser)
+      .catch(() => {
+        return clear();
+      })
+      .finally(() => {
+        return setBooting(false);
+      });
   }, []);
 
-  if (booting) return <FullScreenLoader />;
+  if (booting) {
+    return <FullScreenLoader />;
+  }
 
   return (
     <SocketProvider>
       <CallProvider>
         <Routes>
-          <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
-          <Route path="/register" element={<PublicOnlyRoute><RegisterPage /></PublicOnlyRoute>} />
-          <Route path="/forgot-password" element={<PublicOnlyRoute><ForgotPasswordPage /></PublicOnlyRoute>} />
+          <Route
+            path="/login"
+            element={
+              <PublicOnlyRoute>
+                <LoginPage />
+              </PublicOnlyRoute>
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              <PublicOnlyRoute>
+                <RegisterPage />
+              </PublicOnlyRoute>
+            }
+          />
+          <Route
+            path="/forgot-password"
+            element={
+              <PublicOnlyRoute>
+                <ForgotPasswordPage />
+              </PublicOnlyRoute>
+            }
+          />
 
-          {/* These routes intentionally skip PublicOnlyRoute to work regardless of login state */}
+          {}
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
 
-          <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppLayout />
+              </ProtectedRoute>
+            }
+          >
             <Route path="/chats" element={<ChatsPage />} />
             <Route path="/chats/:chatId" element={<ChatRoomPage />} />
             <Route path="/chats/:chatId/info" element={<GroupInfoPage />} />

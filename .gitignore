@@ -24,3 +24,10 @@ Thumbs.db
 
 # Cache
 .cache/
+# Comment removal scripts
+remove-comments.js
+remove-comments.cjs
+
+# Temporary shell history files
+.bash_history
+.bash_history*

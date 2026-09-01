@@ -4,7 +4,7 @@ import { Toaster } from "react-hot-toast";
 import App from "./App";
 import "./index.css";
 
-/** Application entry point — mounts the React tree into the root DOM node. */
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <BrowserRouter>
     <App />

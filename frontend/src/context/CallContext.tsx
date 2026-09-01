@@ -1,16 +1,22 @@
 import {
-  createContext, useContext, useCallback, useEffect, useRef, useState, type ReactNode,
+  createContext,
+  useContext,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
 } from "react";
 import toast from "react-hot-toast";
 import { useSocket } from "@/context/SocketContext";
 
-/** The kind of media a call carries. */
+
 export type CallType = "audio" | "video";
 
-/** Lifecycle phases for the active call state machine. */
+
 export type CallStatus = "idle" | "outgoing" | "incoming" | "connecting" | "active" | "ended";
 
-/** Minimal user shape needed to render the call UI. */
+
 export interface CallPeer {
   _id: string;
   username: string;
@@ -22,20 +28,20 @@ interface CallContextValue {
   status: CallStatus;
   callType: CallType;
   peer: CallPeer | null;
-  /** Local and remote media streams, exposed for the overlay's <video> elements. */
+  
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
   micEnabled: boolean;
   camEnabled: boolean;
-  /** Seconds elapsed since the call became active. */
+  
   elapsed: number;
-  /** Starts an outgoing call to a peer with the given media type. */
+  
   startCall: (peer: CallPeer, chatId: string, type: CallType) => Promise<void>;
-  /** Accepts the currently ringing incoming call. */
+  
   acceptCall: () => Promise<void>;
-  /** Rejects the currently ringing incoming call. */
+  
   rejectCall: () => void;
-  /** Hangs up an outgoing/active call or cancels a ringing one. */
+  
   endCall: () => void;
   toggleMic: () => void;
   toggleCam: () => void;
@@ -43,30 +49,16 @@ interface CallContextValue {
 
 const CallContext = createContext<CallContextValue | null>(null);
 
-/**
- * Builds the ICE server list at module load time.
- *
- * STUN handles most NAT types. Users behind symmetric NAT (common in
- * corporate networks and some mobile carriers) need a TURN relay to
- * complete ICE negotiation.
- *
- * Set these Vite env vars to enable TURN:
- *   VITE_TURN_URL        — e.g. "turn:your-turn-server.example.com:3478"
- *   VITE_TURN_USERNAME   — TURN username / credential username
- *   VITE_TURN_CREDENTIAL — TURN password / time-limited credential
- *
- * If the vars are absent the app still works for the majority of users via
- * STUN; calls will silently fail only for symmetric-NAT peers.
- */
+
 function buildIceServers(): RTCIceServer[] {
   const servers: RTCIceServer[] = [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
   ];
 
-  const turnUrl      = import.meta.env.VITE_TURN_URL as string | undefined;
+  const turnUrl = import.meta.env.VITE_TURN_URL as string | undefined;
   const turnUsername = import.meta.env.VITE_TURN_USERNAME as string | undefined;
-  const turnCred     = import.meta.env.VITE_TURN_CREDENTIAL as string | undefined;
+  const turnCred = import.meta.env.VITE_TURN_CREDENTIAL as string | undefined;
 
   if (turnUrl && turnUsername && turnCred) {
     servers.push({ urls: turnUrl, username: turnUsername, credential: turnCred });
@@ -77,11 +69,7 @@ function buildIceServers(): RTCIceServer[] {
 
 const ICE_SERVERS = buildIceServers();
 
-/**
- * Owns all WebRTC + signaling logic for 1-to-1 voice and video calls. Mount
- * once inside the SocketProvider. Renders the call UI via <CallOverlay /> which
- * reads this context. Media never flows through the server — only SDP and ICE.
- */
+
 export function CallProvider({ children }: { children: ReactNode }) {
   const { socket } = useSocket();
 
@@ -98,24 +86,32 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const localStreamRef = useRef<MediaStream | null>(null);
   const chatIdRef = useRef<string>("");
   const peerIdRef = useRef<string>("");
-  /** ICE candidates received before remoteDescription is set are queued here. */
+  
   const pendingCandidates = useRef<RTCIceCandidateInit[]>([]);
-  /** Holds the incoming SDP offer until the user accepts. */
+  
   const incomingOffer = useRef<RTCSessionDescriptionInit | null>(null);
   const ringTimeout = useRef<number>();
   const elapsedTimer = useRef<number>();
 
-  /** Stops all local media tracks and releases the camera/mic. */
+  
   const stopLocalMedia = useCallback(() => {
-    localStreamRef.current?.getTracks().forEach((t) => t.stop());
+    localStreamRef.current?.getTracks().forEach(t => {
+      return t.stop();
+    });
     localStreamRef.current = null;
   }, []);
 
-  /** Tears down the peer connection, media, timers, and resets all call state. */
+  
   const cleanup = useCallback(() => {
-    if (ringTimeout.current) window.clearTimeout(ringTimeout.current);
-    if (elapsedTimer.current) window.clearInterval(elapsedTimer.current);
-    pcRef.current?.getSenders().forEach((s) => s.track?.stop());
+    if (ringTimeout.current) {
+      window.clearTimeout(ringTimeout.current);
+    }
+    if (elapsedTimer.current) {
+      window.clearInterval(elapsedTimer.current);
+    }
+    pcRef.current?.getSenders().forEach(s => {
+      return s.track?.stop();
+    });
     pcRef.current?.close();
     pcRef.current = null;
     stopLocalMedia();
@@ -132,14 +128,18 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setPeer(null);
   }, [stopLocalMedia]);
 
-  /** Briefly shows the "ended" screen, then fully resets. */
+  
   const finishCall = useCallback(() => {
-    if (elapsedTimer.current) window.clearInterval(elapsedTimer.current);
+    if (elapsedTimer.current) {
+      window.clearInterval(elapsedTimer.current);
+    }
     setStatus("ended");
-    window.setTimeout(() => cleanup(), 1200);
+    window.setTimeout(() => {
+      return cleanup();
+    }, 1200);
   }, [cleanup]);
 
-  /** Requests camera/mic access for the requested call type. */
+  
   const getMedia = useCallback(async (type: CallType): Promise<MediaStream> => {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: true,
@@ -150,18 +150,18 @@ export function CallProvider({ children }: { children: ReactNode }) {
     return stream;
   }, []);
 
-  /** Builds an RTCPeerConnection wired to emit ICE and surface the remote stream. */
+  
   const createPeerConnection = useCallback(
     (targetId: string): RTCPeerConnection => {
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
 
-      pc.onicecandidate = (e) => {
+      pc.onicecandidate = e => {
         if (e.candidate) {
           socket?.emit("call:ice-candidate", { to: targetId, candidate: e.candidate });
         }
       };
 
-      pc.ontrack = (e) => {
+      pc.ontrack = e => {
         setRemoteStream(e.streams[0]);
       };
 
@@ -169,7 +169,9 @@ export function CallProvider({ children }: { children: ReactNode }) {
         if (pc.connectionState === "connected") {
           setStatus("active");
         } else if (["failed", "disconnected", "closed"].includes(pc.connectionState)) {
-          if (status !== "ended") finishCall();
+          if (status !== "ended") {
+            finishCall();
+          }
         }
       };
 
@@ -179,10 +181,12 @@ export function CallProvider({ children }: { children: ReactNode }) {
     [socket, status, finishCall]
   );
 
-  /** Caller flow: gets media, creates an offer, and rings the peer. */
+  
   const startCall = useCallback(
     async (target: CallPeer, chatId: string, type: CallType) => {
-      if (!socket) return;
+      if (!socket) {
+        return;
+      }
       if (status !== "idle") {
         toast.error("You're already in a call");
         return;
@@ -197,15 +201,17 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
         const stream = await getMedia(type);
         const pc = createPeerConnection(target._id);
-        stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+        stream.getTracks().forEach(t => {
+          return pc.addTrack(t, stream);
+        });
 
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
 
         socket.emit("call:initiate", { to: target._id, chatId, callType: type, offer });
 
-        // Auto-cancel if unanswered after 35s. The timer is cleared once the
-        // call becomes active (see the elapsed-time effect).
+        
+        
         ringTimeout.current = window.setTimeout(() => {
           if (pcRef.current) {
             toast("No answer");
@@ -221,14 +227,18 @@ export function CallProvider({ children }: { children: ReactNode }) {
     [socket, status, getMedia, createPeerConnection, cleanup, finishCall]
   );
 
-  /** Callee flow: gets media, applies the stored offer, and sends an answer. */
+  
   const acceptCall = useCallback(async () => {
-    if (!socket || !incomingOffer.current || !peerIdRef.current) return;
+    if (!socket || !incomingOffer.current || !peerIdRef.current) {
+      return;
+    }
     try {
       setStatus("connecting");
       const stream = await getMedia(callType);
       const pc = createPeerConnection(peerIdRef.current);
-      stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+      stream.getTracks().forEach(t => {
+        return pc.addTrack(t, stream);
+      });
 
       await pc.setRemoteDescription(new RTCSessionDescription(incomingOffer.current));
       for (const c of pendingCandidates.current) {
@@ -248,19 +258,23 @@ export function CallProvider({ children }: { children: ReactNode }) {
     }
   }, [socket, callType, getMedia, createPeerConnection, cleanup]);
 
-  /** Declines a ringing incoming call. */
+  
   const rejectCall = useCallback(() => {
-    if (peerIdRef.current) socket?.emit("call:reject", { to: peerIdRef.current });
+    if (peerIdRef.current) {
+      socket?.emit("call:reject", { to: peerIdRef.current });
+    }
     cleanup();
   }, [socket, cleanup]);
 
-  /** Hangs up / cancels the current call and notifies the peer. */
+  
   const endCall = useCallback(() => {
-    if (peerIdRef.current) socket?.emit("call:end", { to: peerIdRef.current });
+    if (peerIdRef.current) {
+      socket?.emit("call:end", { to: peerIdRef.current });
+    }
     finishCall();
   }, [socket, finishCall]);
 
-  /** Toggles the local microphone track. */
+  
   const toggleMic = useCallback(() => {
     const track = localStreamRef.current?.getAudioTracks()[0];
     if (track) {
@@ -269,7 +283,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  /** Toggles the local camera track (video calls only). */
+  
   const toggleCam = useCallback(() => {
     const track = localStreamRef.current?.getVideoTracks()[0];
     if (track) {
@@ -278,24 +292,43 @@ export function CallProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  /** Starts the elapsed-time counter once the call becomes active. */
+  
   useEffect(() => {
     if (status === "active") {
-      if (ringTimeout.current) window.clearTimeout(ringTimeout.current);
-      elapsedTimer.current = window.setInterval(() => setElapsed((s) => s + 1), 1000);
-      return () => window.clearInterval(elapsedTimer.current);
+      if (ringTimeout.current) {
+        window.clearTimeout(ringTimeout.current);
+      }
+      elapsedTimer.current = window.setInterval(() => {
+        return setElapsed(s => {
+          return s + 1;
+        });
+      }, 1000);
+      return () => {
+        return window.clearInterval(elapsedTimer.current);
+      };
     }
   }, [status]);
 
-  /** Registers all signaling listeners for the lifetime of the socket. */
+  
   useEffect(() => {
-    if (!socket) return;
+    if (!socket) {
+      return;
+    }
 
-    const onIncoming = ({ from, chatId, callType: type, offer, caller }: {
-      from: string; chatId: string; callType: CallType;
-      offer: RTCSessionDescriptionInit; caller: CallPeer;
+    const onIncoming = ({
+      from,
+      chatId,
+      callType: type,
+      offer,
+      caller,
+    }: {
+      from: string;
+      chatId: string;
+      callType: CallType;
+      offer: RTCSessionDescriptionInit;
+      caller: CallPeer;
     }) => {
-      // Busy: auto-reject a second incoming call.
+      
       if (status !== "idle") {
         socket.emit("call:reject", { to: from });
         return;
@@ -311,7 +344,9 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
     const onAccepted = async ({ answer }: { answer: RTCSessionDescriptionInit }) => {
       const pc = pcRef.current;
-      if (!pc) return;
+      if (!pc) {
+        return;
+      }
       setStatus("connecting");
       await pc.setRemoteDescription(new RTCSessionDescription(answer)).catch(() => {});
       for (const c of pendingCandidates.current) {
@@ -371,9 +406,20 @@ export function CallProvider({ children }: { children: ReactNode }) {
   return (
     <CallContext.Provider
       value={{
-        status, callType, peer, localStream, remoteStream,
-        micEnabled, camEnabled, elapsed,
-        startCall, acceptCall, rejectCall, endCall, toggleMic, toggleCam,
+        status,
+        callType,
+        peer,
+        localStream,
+        remoteStream,
+        micEnabled,
+        camEnabled,
+        elapsed,
+        startCall,
+        acceptCall,
+        rejectCall,
+        endCall,
+        toggleMic,
+        toggleCam,
       }}
     >
       {children}
@@ -381,9 +427,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** Hook for accessing the call context from any child component. */
+
 export function useCall(): CallContextValue {
   const ctx = useContext(CallContext);
-  if (!ctx) throw new Error("useCall must be used within a CallProvider");
+  if (!ctx) {
+    throw new Error("useCall must be used within a CallProvider");
+  }
   return ctx;
 }

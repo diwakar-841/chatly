@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, MessageCircle, UserPlus, UserCheck, UserX, BadgeCheck, Loader2, Lock, Ban } from "lucide-react";
+import {
+  ArrowLeft,
+  MessageCircle,
+  UserPlus,
+  UserCheck,
+  UserX,
+  BadgeCheck,
+  Loader2,
+  Lock,
+  Ban,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import { profileApi, chatApi, requestApi, blockApi } from "@/api/endpoints";
 import type { User, RequestStatus } from "@/types";
@@ -9,17 +19,19 @@ import { useAuth } from "@/store/auth";
 import { apiError } from "@/api/client";
 import { useSocket } from "@/context/SocketContext";
 
-/** Extends the public User shape with visibility flags returned by the profile endpoint. */
+
 interface ProfileData extends User {
   canView?: boolean;
   canChat?: boolean;
 }
 
-/** Displays another user's public profile with friend-request, DM, and block actions. */
+
 export default function UserProfilePage() {
   const { userId = "" } = useParams();
   const navigate = useNavigate();
-  const me = useAuth((s) => s.user);
+  const me = useAuth(s => {
+    return s.user;
+  });
   const { onlineUsers, removeOnlineUser } = useSocket();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [status, setStatus] = useState<RequestStatus>("none");
@@ -30,11 +42,15 @@ export default function UserProfilePage() {
   const [blockedByMe, setBlockedByMe] = useState(false);
 
   useEffect(() => {
-    if (me && userId === me._id) navigate("/profile", { replace: true });
+    if (me && userId === me._id) {
+      navigate("/profile", { replace: true });
+    }
   }, [userId, me, navigate]);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId) {
+      return;
+    }
     setLoading(true);
     setUnavailable(false);
     Promise.all([
@@ -48,7 +64,7 @@ export default function UserProfilePage() {
         setRequestId(req.requestId);
         setBlockedByMe(blockStatus.blockedByMe);
       })
-      .catch((e) => {
+      .catch(e => {
         const s = e?.response?.status;
         if (s === 403) {
           setUnavailable(true);
@@ -57,10 +73,12 @@ export default function UserProfilePage() {
           navigate(-1);
         }
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        return setLoading(false);
+      });
   }, [userId, navigate]);
 
-  /** Opens or creates a direct-message chat with this user and navigates to it. */
+  
   const openDM = async () => {
     setActionLoading(true);
     try {
@@ -73,7 +91,7 @@ export default function UserProfilePage() {
     }
   };
 
-  /** Sends a friend request to this user. */
+  
   const sendRequest = async () => {
     setActionLoading(true);
     try {
@@ -88,9 +106,11 @@ export default function UserProfilePage() {
     }
   };
 
-  /** Cancels a previously sent friend request. */
+  
   const withdrawRequest = async () => {
-    if (!requestId) return;
+    if (!requestId) {
+      return;
+    }
     setActionLoading(true);
     try {
       await requestApi.withdraw(requestId);
@@ -104,14 +124,18 @@ export default function UserProfilePage() {
     }
   };
 
-  /** Accepts an incoming friend request from this user. */
+  
   const acceptRequest = async () => {
-    if (!requestId) return;
+    if (!requestId) {
+      return;
+    }
     setActionLoading(true);
     try {
       await requestApi.respond(requestId, "accept");
       setStatus("accepted");
-      setProfile((p) => p ? { ...p, canChat: true } : p);
+      setProfile(p => {
+        return p ? { ...p, canChat: true } : p;
+      });
       toast.success("Request accepted");
     } catch (e) {
       toast.error(apiError(e, "Failed to accept request"));
@@ -120,7 +144,7 @@ export default function UserProfilePage() {
     }
   };
 
-  /** Blocks this user and removes them from the online-users set. */
+  
   const handleBlock = async () => {
     setActionLoading(true);
     try {
@@ -135,7 +159,7 @@ export default function UserProfilePage() {
     }
   };
 
-  /** Unblocks this user. */
+  
   const handleUnblock = async () => {
     setActionLoading(true);
     try {
@@ -149,15 +173,19 @@ export default function UserProfilePage() {
     }
   };
 
-  /** Removes an accepted friendship (private accounts only). */
+  
   const handleUnfriend = async () => {
-    if (!confirm("Remove this person from your friends?")) return;
+    if (!confirm("Remove this person from your friends?")) {
+      return;
+    }
     setActionLoading(true);
     try {
       await requestApi.unfriend(userId);
       setStatus("none");
       setRequestId(undefined);
-      setProfile((p) => (p ? { ...p, canChat: false } : p));
+      setProfile(p => {
+        return p ? { ...p, canChat: false } : p;
+      });
       toast.success("Removed from friends");
     } catch (e) {
       toast.error(apiError(e, "Failed to unfriend"));
@@ -178,7 +206,12 @@ export default function UserProfilePage() {
     return (
       <div className="flex flex-col h-full">
         <header className="px-4 pt-5 pb-3 border-b border-border bg-bg-elevated shrink-0 flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-1.5 hover:bg-bg-panel rounded-lg text-muted">
+          <button
+            onClick={() => {
+              return navigate(-1);
+            }}
+            className="p-1.5 hover:bg-bg-panel rounded-lg text-muted"
+          >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="text-lg font-semibold">Profile</h1>
@@ -192,7 +225,9 @@ export default function UserProfilePage() {
             <p className="text-sm text-muted mt-1">You can't view this profile right now.</p>
           </div>
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => {
+              return navigate(-1);
+            }}
             className="mt-2 btn-ghost px-6 py-2 rounded-xl border border-border text-sm"
           >
             Go back
@@ -202,20 +237,30 @@ export default function UserProfilePage() {
     );
   }
 
-  if (!profile) return null;
+  if (!profile) {
+    return null;
+  }
 
-  const isOnline = !blockedByMe && (status === "accepted" || profile?.isPrivate === false) && onlineUsers.has(userId);
+  const isOnline =
+    !blockedByMe &&
+    (status === "accepted" || profile?.isPrivate === false) &&
+    onlineUsers.has(userId);
   const displayName = profile.fullName || profile.username;
   const canView = profile.canView !== false;
   const canChat = (profile.canChat === true || status === "accepted") && !blockedByMe;
-  // Public accounts have no friendship concept: anyone can DM directly, so we
-  // never surface friend-request / unfriend actions for them — only Block.
+  
+  
   const isPrivate = profile.isPrivate !== false;
 
   return (
     <div className="flex flex-col h-full">
       <header className="px-4 pt-5 pb-3 border-b border-border bg-bg-elevated shrink-0 flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="p-1.5 hover:bg-bg-panel rounded-lg text-muted">
+        <button
+          onClick={() => {
+            return navigate(-1);
+          }}
+          className="p-1.5 hover:bg-bg-panel rounded-lg text-muted"
+        >
           <ArrowLeft className="w-5 h-5" />
         </button>
         <h1 className="text-lg font-semibold truncate">{displayName}</h1>
@@ -244,8 +289,8 @@ export default function UserProfilePage() {
           <div className="mx-4 mb-4 card p-4 flex flex-col items-center gap-2 text-center">
             <Ban className="w-6 h-6 text-muted" />
             <p className="text-sm text-muted">
-              You blocked <strong className="text-foreground">{displayName}</strong>.
-              They can't message you or see your online status.
+              You blocked <strong className="text-foreground">{displayName}</strong>. They can't
+              message you or see your online status.
             </p>
             <button
               onClick={handleUnblock}
@@ -271,7 +316,9 @@ export default function UserProfilePage() {
           <div className="mx-4 mb-4 card p-6 flex flex-col items-center gap-2 text-center">
             <Lock className="w-8 h-8 text-muted" />
             <p className="font-medium">This account is private</p>
-            <p className="text-sm text-muted">Send a friend request to see their profile and start chatting.</p>
+            <p className="text-sm text-muted">
+              Send a friend request to see their profile and start chatting.
+            </p>
           </div>
         )}
 
@@ -282,7 +329,11 @@ export default function UserProfilePage() {
               disabled={actionLoading}
               className="btn-primary w-full flex items-center justify-center gap-2 py-3 rounded-xl"
             >
-              {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
+              {actionLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <MessageCircle className="w-4 h-4" />
+              )}
               Message
             </button>
           )}
@@ -293,7 +344,11 @@ export default function UserProfilePage() {
               disabled={actionLoading}
               className="btn-ghost w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-border"
             >
-              {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+              {actionLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <UserPlus className="w-4 h-4" />
+              )}
               Send Friend Request
             </button>
           )}
@@ -304,7 +359,11 @@ export default function UserProfilePage() {
               disabled={actionLoading}
               className="btn-ghost w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-border text-muted"
             >
-              {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserX className="w-4 h-4" />}
+              {actionLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <UserX className="w-4 h-4" />
+              )}
               Withdraw Request
             </button>
           )}
@@ -315,7 +374,11 @@ export default function UserProfilePage() {
               disabled={actionLoading}
               className="btn-primary w-full flex items-center justify-center gap-2 py-3 rounded-xl"
             >
-              {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />}
+              {actionLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <UserCheck className="w-4 h-4" />
+              )}
               Accept Request
             </button>
           )}
@@ -326,7 +389,11 @@ export default function UserProfilePage() {
               disabled={actionLoading}
               className="btn-ghost w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-border text-muted"
             >
-              {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserX className="w-4 h-4" />}
+              {actionLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <UserX className="w-4 h-4" />
+              )}
               Unfriend
             </button>
           )}

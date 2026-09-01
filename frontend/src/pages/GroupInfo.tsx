@@ -1,8 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  ArrowLeft, UserMinus, Camera, LogOut, Pin, UserPlus,
-  Check, X, Globe, Lock, Users, Search, Loader2,
+  ArrowLeft,
+  UserMinus,
+  Camera,
+  LogOut,
+  Pin,
+  UserPlus,
+  Check,
+  X,
+  Globe,
+  Lock,
+  Users,
+  Search,
+  Loader2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { chatApi, profileApi } from "@/api/endpoints";
@@ -13,10 +24,12 @@ import { useAuth } from "@/store/auth";
 import { apiError } from "@/api/client";
 import { cn } from "@/lib/utils";
 
-/** Full group settings page — members list, join-request management, and admin controls. */
+
 export default function GroupInfoPage() {
   const { chatId = "" } = useParams();
-  const me = useAuth((s) => s.user);
+  const me = useAuth(s => {
+    return s.user;
+  });
   const navigate = useNavigate();
 
   const [chat, setChat] = useState<Chat | null>(null);
@@ -35,51 +48,76 @@ export default function GroupInfoPage() {
   useEffect(() => {
     chatApi
       .get(chatId)
-      .then((c) => {
+      .then(c => {
         setChat(c);
         setName(c?.name || "");
         setDescription(c?.description || "");
       })
-      .catch(() => setChat(null))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        return setChat(null);
+      })
+      .finally(() => {
+        return setLoading(false);
+      });
   }, [chatId]);
 
-  const adminIds = (chat?.admins || []).map((a) =>
-    typeof a === "string" ? a : (a as unknown as { _id: string })._id
-  );
+  const adminIds = (chat?.admins || []).map(a => {
+    return typeof a === "string" ? a : (a as unknown as { _id: string })._id;
+  });
 
   const isAdmin = adminIds.includes(me?._id || "") || chat?.creator === me?._id;
-  const isMember = chat?.members.some((m) => m._id === me?._id);
+  const isMember = chat?.members.some(m => {
+    return m._id === me?._id;
+  });
   const hasRequested = chat?.joinRequests?.includes(me?._id || "") ?? false;
   const pinnedCount = chat?.pinnedMessages?.length || 0;
   const joinRequests = (chat?.joinRequests as unknown as User[]) || [];
 
-  /** Debounced member search — excludes current members from results. */
+  
   useEffect(() => {
-    if (!showAddSearch) return;
+    if (!showAddSearch) {
+      return;
+    }
     window.clearTimeout(searchTimer.current);
-    if (!searchQ.trim()) { setSearchResults([]); return; }
+    if (!searchQ.trim()) {
+      setSearchResults([]);
+      return;
+    }
     searchTimer.current = window.setTimeout(async () => {
       setSearching(true);
       try {
         const result = await profileApi.search(searchQ.trim(), 1);
-        const memberIds = new Set(chat?.members.map((m) => m._id) || []);
-        setSearchResults(result.data.filter((u) => !memberIds.has(u._id)));
+        const memberIds = new Set(
+          chat?.members.map(m => {
+            return m._id;
+          }) || []
+        );
+        setSearchResults(
+          result.data.filter(u => {
+            return !memberIds.has(u._id);
+          })
+        );
       } catch {
         setSearchResults([]);
       } finally {
         setSearching(false);
       }
     }, 300);
-    return () => window.clearTimeout(searchTimer.current);
+    return () => {
+      return window.clearTimeout(searchTimer.current);
+    };
   }, [searchQ, showAddSearch, chat?.members]);
 
-  /** Sends a group invite to the given user and removes them from search results. */
+  
   const addMember = async (user: User) => {
     setAddingMember(user._id);
     try {
       await chatApi.addMembers(chatId, [user._id]);
-      setSearchResults((p) => p.filter((u) => u._id !== user._id));
+      setSearchResults(p => {
+        return p.filter(u => {
+          return u._id !== user._id;
+        });
+      });
       toast.success(`Invite sent to ${user.fullName || user.username}`);
     } catch (e) {
       toast.error(apiError(e, "Failed to send invite"));
@@ -88,9 +126,11 @@ export default function GroupInfoPage() {
     }
   };
 
-  /** Persists a changed group name on input blur. */
+  
   const updateName = async () => {
-    if (!name.trim() || name === chat?.name) return;
+    if (!name.trim() || name === chat?.name) {
+      return;
+    }
     try {
       const c = await chatApi.update(chatId, { name });
       setChat(c);
@@ -100,9 +140,11 @@ export default function GroupInfoPage() {
     }
   };
 
-  /** Persists a changed group description on textarea blur. */
+  
   const updateDescription = async () => {
-    if (description === (chat?.description || "")) return;
+    if (description === (chat?.description || "")) {
+      return;
+    }
     try {
       const { api } = await import("@/api/client");
       const res = await api.put<Chat>(`/chats/${chatId}`, { description });
@@ -113,7 +155,7 @@ export default function GroupInfoPage() {
     }
   };
 
-  /** Uploads a new avatar image for the group. */
+  
   const updateAvatar = async (file: File) => {
     try {
       const c = await chatApi.update(chatId, { file });
@@ -124,9 +166,11 @@ export default function GroupInfoPage() {
     }
   };
 
-  /** Removes the specified member from the group (admin only). */
+  
   const removeMember = async (memberId: string) => {
-    if (!confirm("Remove this member?")) return;
+    if (!confirm("Remove this member?")) {
+      return;
+    }
     try {
       const c = await chatApi.removeMember(chatId, memberId);
       setChat(c);
@@ -136,9 +180,11 @@ export default function GroupInfoPage() {
     }
   };
 
-  /** Leaves the group and redirects to the chats list. */
+  
   const leaveGroup = async () => {
-    if (!confirm("Leave this group?")) return;
+    if (!confirm("Leave this group?")) {
+      return;
+    }
     setLeaving(true);
     try {
       await chatApi.leave(chatId);
@@ -150,10 +196,10 @@ export default function GroupInfoPage() {
     }
   };
 
-  /** Requests to join (or directly joins if public) and refreshes chat data. */
+  
   const requestJoin = async () => {
     try {
-      const result = await chatApi.requestJoin(chatId) as { joined: boolean; message: string };
+      const result = (await chatApi.requestJoin(chatId)) as { joined: boolean; message: string };
       if (result.joined) {
         toast.success("Joined the group!");
       } else {
@@ -161,10 +207,12 @@ export default function GroupInfoPage() {
       }
       const c = await chatApi.get(chatId);
       setChat(c);
-    } catch (e) { toast.error(apiError(e)); }
+    } catch (e) {
+      toast.error(apiError(e));
+    }
   };
 
-  /** Accepts or rejects a pending join request as an admin. */
+  
   const handleJoinRequest = async (userId: string, action: "accept" | "reject") => {
     setHandlingRequest(userId);
     try {
@@ -187,15 +235,18 @@ export default function GroupInfoPage() {
   }
 
   if (!chat) {
-    return (
-      <div className="p-8 text-muted text-center">Group not found</div>
-    );
+    return <div className="p-8 text-muted text-center">Group not found</div>;
   }
 
   return (
     <div className="flex flex-col h-full">
       <header className="flex items-center gap-3 px-4 py-3 border-b border-border bg-bg-elevated">
-        <button onClick={() => navigate(-1)} className="p-1.5 hover:bg-bg-panel rounded-lg">
+        <button
+          onClick={() => {
+            return navigate(-1);
+          }}
+          className="p-1.5 hover:bg-bg-panel rounded-lg"
+        >
           <ArrowLeft className="w-5 h-5" />
         </button>
         <h1 className="text-lg font-semibold">Group info</h1>
@@ -214,7 +265,9 @@ export default function GroupInfoPage() {
                   type="file"
                   accept="image/*"
                   hidden
-                  onChange={(e) => e.target.files?.[0] && updateAvatar(e.target.files[0])}
+                  onChange={e => {
+                    return e.target.files?.[0] && updateAvatar(e.target.files[0]);
+                  }}
                 />
               </>
             )}
@@ -224,7 +277,9 @@ export default function GroupInfoPage() {
             <input
               className="input text-center text-lg font-semibold"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={e => {
+                return setName(e.target.value);
+              }}
               onBlur={updateName}
               disabled={!isAdmin}
               placeholder="Group name"
@@ -236,10 +291,12 @@ export default function GroupInfoPage() {
               <Users className="w-3.5 h-3.5" />
               {chat.members.length} members
             </span>
-            <span className={cn(
-              "flex items-center gap-1 text-xs px-2 py-0.5 rounded-full",
-              chat.isPublic ? "bg-accent/10 text-accent" : "bg-bg-panel text-muted"
-            )}>
+            <span
+              className={cn(
+                "flex items-center gap-1 text-xs px-2 py-0.5 rounded-full",
+                chat.isPublic ? "bg-accent/10 text-accent" : "bg-bg-panel text-muted"
+              )}
+            >
               {chat.isPublic ? <Globe className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
               {chat.isPublic ? "Public" : "Private"}
             </span>
@@ -249,7 +306,9 @@ export default function GroupInfoPage() {
             <textarea
               className="input resize-none text-sm min-h-[60px]"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={e => {
+                return setDescription(e.target.value);
+              }}
               onBlur={updateDescription}
               disabled={!isAdmin}
               placeholder={isAdmin ? "Add a group description…" : "No description"}
@@ -261,7 +320,9 @@ export default function GroupInfoPage() {
         {pinnedCount > 0 && (
           <div className="px-4 py-3 border-b border-border/40 flex items-center gap-3 text-sm text-muted">
             <Pin className="w-4 h-4 text-accent" />
-            <span>{pinnedCount} pinned message{pinnedCount !== 1 ? "s" : ""}</span>
+            <span>
+              {pinnedCount} pinned message{pinnedCount !== 1 ? "s" : ""}
+            </span>
           </div>
         )}
 
@@ -271,33 +332,43 @@ export default function GroupInfoPage() {
               <UserPlus className="w-3.5 h-3.5" />
               Join Requests ({joinRequests.length})
             </div>
-            {joinRequests.map((u) => (
-              <div key={u._id} className="flex items-center gap-3 py-2.5">
-                <Avatar src={u.avatar} name={u.fullName || u.username} />
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">{u.fullName || u.username}</div>
-                  <div className="text-sm text-muted truncate">@{u.username}</div>
+            {joinRequests.map(u => {
+              return (
+                <div key={u._id} className="flex items-center gap-3 py-2.5">
+                  <Avatar src={u.avatar} name={u.fullName || u.username} />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">{u.fullName || u.username}</div>
+                    <div className="text-sm text-muted truncate">@{u.username}</div>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={() => {
+                        return handleJoinRequest(u._id, "accept");
+                      }}
+                      disabled={handlingRequest === u._id}
+                      className="w-8 h-8 rounded-full bg-accent/10 text-accent hover:bg-accent hover:text-black flex items-center justify-center transition"
+                      title="Accept"
+                    >
+                      {handlingRequest === u._id ? (
+                        <Spinner className="w-4 h-4" />
+                      ) : (
+                        <Check className="w-4 h-4" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => {
+                        return handleJoinRequest(u._id, "reject");
+                      }}
+                      disabled={handlingRequest === u._id}
+                      className="w-8 h-8 rounded-full bg-red-400/10 text-red-400 hover:bg-red-400 hover:text-white flex items-center justify-center transition"
+                      title="Reject"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex gap-2 shrink-0">
-                  <button
-                    onClick={() => handleJoinRequest(u._id, "accept")}
-                    disabled={handlingRequest === u._id}
-                    className="w-8 h-8 rounded-full bg-accent/10 text-accent hover:bg-accent hover:text-black flex items-center justify-center transition"
-                    title="Accept"
-                  >
-                    {handlingRequest === u._id ? <Spinner className="w-4 h-4" /> : <Check className="w-4 h-4" />}
-                  </button>
-                  <button
-                    onClick={() => handleJoinRequest(u._id, "reject")}
-                    disabled={handlingRequest === u._id}
-                    className="w-8 h-8 rounded-full bg-red-400/10 text-red-400 hover:bg-red-400 hover:text-white flex items-center justify-center transition"
-                    title="Reject"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -306,7 +377,13 @@ export default function GroupInfoPage() {
             <div className="text-xs uppercase font-semibold text-muted tracking-wider">Members</div>
             {isAdmin && (
               <button
-                onClick={() => { setShowAddSearch((p) => !p); setSearchQ(""); setSearchResults([]); }}
+                onClick={() => {
+                  setShowAddSearch(p => {
+                    return !p;
+                  });
+                  setSearchQ("");
+                  setSearchResults([]);
+                }}
                 className="flex items-center gap-1 text-xs text-accent hover:underline"
               >
                 <UserPlus className="w-3.5 h-3.5" />
@@ -322,7 +399,9 @@ export default function GroupInfoPage() {
                 <input
                   autoFocus
                   value={searchQ}
-                  onChange={(e) => setSearchQ(e.target.value)}
+                  onChange={e => {
+                    return setSearchQ(e.target.value);
+                  }}
                   placeholder="Search by name or @username…"
                   className="input pl-9 rounded-full text-sm"
                 />
@@ -333,49 +412,63 @@ export default function GroupInfoPage() {
               {searchQ.trim() && !searching && searchResults.length === 0 && (
                 <p className="text-sm text-muted text-center py-2">No users found</p>
               )}
-              {searchResults.map((u) => (
-                <div key={u._id} className="flex items-center gap-3 py-1.5">
-                  <Avatar src={u.avatar} name={u.fullName || u.username} size={36} />
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm truncate">{u.fullName || u.username}</div>
-                    <div className="text-xs text-muted truncate">@{u.username}</div>
+              {searchResults.map(u => {
+                return (
+                  <div key={u._id} className="flex items-center gap-3 py-1.5">
+                    <Avatar src={u.avatar} name={u.fullName || u.username} size={36} />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">{u.fullName || u.username}</div>
+                      <div className="text-xs text-muted truncate">@{u.username}</div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        return addMember(u);
+                      }}
+                      disabled={addingMember === u._id}
+                      className="shrink-0 w-8 h-8 rounded-full bg-accent/10 text-accent hover:bg-accent hover:text-black flex items-center justify-center transition"
+                      title="Add"
+                    >
+                      {addingMember === u._id ? (
+                        <Spinner className="w-4 h-4" />
+                      ) : (
+                        <UserPlus className="w-3.5 h-3.5" />
+                      )}
+                    </button>
                   </div>
-                  <button
-                    onClick={() => addMember(u)}
-                    disabled={addingMember === u._id}
-                    className="shrink-0 w-8 h-8 rounded-full bg-accent/10 text-accent hover:bg-accent hover:text-black flex items-center justify-center transition"
-                    title="Add"
-                  >
-                    {addingMember === u._id ? <Spinner className="w-4 h-4" /> : <UserPlus className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
-          {chat.members.map((m) => (
-            <div key={m._id} className="flex items-center gap-3 py-2.5">
-              <Avatar src={m.avatar} name={m.fullName || m.username} />
-              <div className="flex-1 min-w-0">
-                <div className="font-medium truncate flex items-center gap-1.5">
-                  {m.fullName || m.username}
-                  {(adminIds.includes(m._id) || chat.creator === m._id) && (
-                    <span className="text-xs text-accent bg-accent/10 px-1.5 py-0.5 rounded-full">Admin</span>
-                  )}
+          {chat.members.map(m => {
+            return (
+              <div key={m._id} className="flex items-center gap-3 py-2.5">
+                <Avatar src={m.avatar} name={m.fullName || m.username} />
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium truncate flex items-center gap-1.5">
+                    {m.fullName || m.username}
+                    {(adminIds.includes(m._id) || chat.creator === m._id) && (
+                      <span className="text-xs text-accent bg-accent/10 px-1.5 py-0.5 rounded-full">
+                        Admin
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-sm text-muted truncate">@{m.username}</div>
                 </div>
-                <div className="text-sm text-muted truncate">@{m.username}</div>
+                {isAdmin && m._id !== me?._id && (
+                  <button
+                    onClick={() => {
+                      return removeMember(m._id);
+                    }}
+                    className="p-2 text-red-400 hover:bg-bg-panel rounded-lg transition"
+                    title="Remove"
+                  >
+                    <UserMinus className="w-4 h-4" />
+                  </button>
+                )}
               </div>
-              {isAdmin && m._id !== me?._id && (
-                <button
-                  onClick={() => removeMember(m._id)}
-                  className="p-2 text-red-400 hover:bg-bg-panel rounded-lg transition"
-                  title="Remove"
-                >
-                  <UserMinus className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {!isMember && chat.isPublic && (

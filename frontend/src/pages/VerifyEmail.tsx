@@ -8,26 +8,34 @@ import { useAuth } from "@/store/auth";
 import { disconnectSocket } from "@/lib/socket";
 import { Spinner } from "@/components/Spinner";
 
-/**
- * Email verification page — user enters the 6-digit OTP that was emailed to them.
- * Always operates on the signed-in account's email; there's no manual email field,
- * since this page is only reachable while logged in (see ProtectedRoute).
- */
+
 export default function VerifyEmailPage() {
   const navigate = useNavigate();
-  const storedUser = useAuth((s) => s.user);
-  const refreshToken = useAuth((s) => s.refreshToken);
-  const setUser = useAuth((s) => s.setUser);
-  const clear = useAuth((s) => s.clear);
+  const storedUser = useAuth(s => {
+    return s.user;
+  });
+  const refreshToken = useAuth(s => {
+    return s.refreshToken;
+  });
+  const setUser = useAuth(s => {
+    return s.setUser;
+  });
+  const clear = useAuth(s => {
+    return s.clear;
+  });
   const [otp, setOtp] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
   const [verified, setVerified] = useState(false);
 
-  // No logged-in account to verify — send them to log in first.
-  if (!storedUser) return <Navigate to="/login" replace />;
-  // Already verified (and not just now, in this session) — nothing to do here.
-  if (storedUser.isVerified && !verified) return <Navigate to="/chats" replace />;
+  
+  if (!storedUser) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  if (storedUser.isVerified && !verified) {
+    return <Navigate to="/chats" replace />;
+  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,15 +63,13 @@ export default function VerifyEmailPage() {
     }
   };
 
-  /**
-   * Signs out of this unverified account and returns to /login. A plain link
-   * to /login won't work here: PublicOnlyRoute would immediately bounce a
-   * still-logged-in user back to /chats, which ProtectedRoute would then
-   * send right back to /verify-email since they're still unverified — so
-   * this has to actually clear the session first.
-   */
+  
   const backToLogin = async () => {
-    try { await authApi.logout(refreshToken || undefined); } catch { /* best-effort */ }
+    try {
+      await authApi.logout(refreshToken || undefined);
+    } catch {
+      
+    }
     disconnectSocket();
     clear();
     navigate("/login");
@@ -80,7 +86,12 @@ export default function VerifyEmailPage() {
             <CheckCircle className="w-12 h-12 text-accent mx-auto mb-4" />
             <h1 className="text-xl font-bold mb-2">Email verified!</h1>
             <p className="text-muted text-sm mb-6">Your account is now fully activated.</p>
-            <button onClick={() => navigate("/chats")} className="btn-primary inline-flex">
+            <button
+              onClick={() => {
+                return navigate("/chats");
+              }}
+              className="btn-primary inline-flex"
+            >
               Continue
             </button>
           </>
@@ -88,7 +99,8 @@ export default function VerifyEmailPage() {
           <>
             <h1 className="text-xl font-bold mb-2">Verify your email</h1>
             <p className="text-muted text-sm mb-6">
-              Enter the 6-digit code we emailed to <span className="text-fg">{storedUser.email}</span>. It expires in 10 minutes.
+              Enter the 6-digit code we emailed to{" "}
+              <span className="text-fg">{storedUser.email}</span>. It expires in 10 minutes.
             </p>
             <form onSubmit={submit} className="space-y-4 text-left">
               <input
@@ -100,7 +112,9 @@ export default function VerifyEmailPage() {
                 className="input text-center tracking-[0.5em]"
                 placeholder="------"
                 value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                onChange={e => {
+                  return setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
+                }}
               />
               <button disabled={verifying || otp.length !== 6} className="btn-primary w-full">
                 {verifying ? <Spinner /> : "Verify"}

@@ -14,9 +14,11 @@ import { getOrCreateKeyPair, deriveSharedSecret, decryptMessage } from "@/utils/
 
 type FilterTab = "all" | "unread" | "groups" | "blocked";
 
-/** Main chats list — shows existing conversations and lets users search for contacts and groups. */
+
 export default function ChatsPage() {
-  const me = useAuth((s) => s.user);
+  const me = useAuth(s => {
+    return s.user;
+  });
   const navigate = useNavigate();
   const location = useLocation();
   const { socket, onlineUsers } = useSocket();
@@ -35,63 +37,69 @@ export default function ChatsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [groupActions, setGroupActions] = useState<Record<string, "joined" | "requested">>({});
 
-  /**
-   * FIX (Bug 2): Stores decrypted last-message previews keyed by chat ID.
-   * The chat list cannot rely on plaintext `content` for E2E DMs — the server only
-   * stores ciphertext. We derive the per-chat shared secret once and decrypt the
-   * preview in the background so users see the actual message, not "🔒 Encrypted message".
-   */
+  
   const [decryptedPreviews, setDecryptedPreviews] = useState<Map<string, string>>(new Map());
 
-  /**
-   * Cache of derived shared secrets keyed by the OTHER user's ID so we don't
-   * re-fetch their public key every time a socket message arrives.
-   */
+  
   const sharedSecretsCache = useRef<Map<string, Uint8Array>>(new Map());
 
-  /** Loads the chat list and blocked-user IDs on each navigation to this page. */
+  
   useEffect(() => {
     setLoading(true);
-    chatApi.list()
+    chatApi
+      .list()
       .then(setChats)
-      .catch((e) => toast.error(apiError(e, "Failed to load chats")))
-      .finally(() => setLoading(false));
+      .catch(e => {
+        return toast.error(apiError(e, "Failed to load chats"));
+      })
+      .finally(() => {
+        return setLoading(false);
+      });
     blockApi
       .list()
-      .then((list) => setBlockedIds(new Set(list.map((u: { _id: string }) => u._id))))
+      .then(list => {
+        return setBlockedIds(
+          new Set(
+            list.map((u: { _id: string }) => {
+              return u._id;
+            })
+          )
+        );
+      })
       .catch(() => {});
   }, [location.key]);
 
-  /**
-   * FIX (Bug 2): After chats load, asynchronously decrypt the last-message preview
-   * for every DM chat that has an encrypted last message.
-   *
-   * Steps per chat:
-   *  1. Get (or create) our local keypair.
-   *  2. Fetch the other user's public key (or reuse the cached shared secret).
-   *  3. Derive the shared secret.
-   *  4. Decrypt `lastMessage.encryptedContent` and store the result.
-   */
+  
   useEffect(() => {
-    if (!me?._id || chats.length === 0) return;
+    if (!me?._id || chats.length === 0) {
+      return;
+    }
 
     const myKp = getOrCreateKeyPair(me._id);
 
-    const encryptedDMs = chats.filter(
-      (c) => !c.isGroup && c.lastMessage?.encryptedContent && c.lastMessage?.nonce,
-    );
-    if (encryptedDMs.length === 0) return;
+    const encryptedDMs = chats.filter(c => {
+      return !c.isGroup && c.lastMessage?.encryptedContent && c.lastMessage?.nonce;
+    });
+    if (encryptedDMs.length === 0) {
+      return;
+    }
 
-    encryptedDMs.forEach(async (c) => {
-      const other = c.members.find((m) => m._id !== me._id);
-      if (!other) return;
+    encryptedDMs.forEach(async c => {
+      const other = c.members.find(m => {
+        return m._id !== me._id;
+      });
+      if (!other) {
+        return;
+      }
 
       try {
         let secret = sharedSecretsCache.current.get(other._id);
 
         if (!secret) {
           const { publicKey } = await authApi.getPublicKey(other._id);
-          if (!publicKey) return;
+          if (!publicKey) {
+            return;
+          }
           secret = deriveSharedSecret(publicKey, myKp.secretKey);
           sharedSecretsCache.current.set(other._id, secret);
         }
@@ -99,31 +107,27 @@ export default function ChatsPage() {
         const decrypted = decryptMessage(
           c.lastMessage!.encryptedContent!,
           c.lastMessage!.nonce!,
-          secret,
+          secret
         );
 
         if (decrypted !== null) {
-          setDecryptedPreviews((prev) => {
+          setDecryptedPreviews(prev => {
             const next = new Map(prev);
             next.set(c._id, decrypted);
             return next;
           });
         }
       } catch {
-        // Decryption failure is non-fatal; preview will show empty.
+        
       }
     });
   }, [chats, me?._id]);
 
-  /**
-   * Keeps the chat list in sync with real-time socket events (new messages, read receipts, new chats).
-   *
-   * FIX (Bug 2): When an encrypted message arrives via socket, decrypt it immediately
-   * using the cached shared secret (or by fetching the key) so the preview updates
-   * to the real content rather than the lock placeholder.
-   */
+  
   useEffect(() => {
-    if (!socket) return;
+    if (!socket) {
+      return;
+    }
 
     const onNew = (msg: {
       chat: string;
@@ -133,26 +137,43 @@ export default function ChatsPage() {
       encryptedContent?: string;
       nonce?: string;
     }) => {
-      setChats((prev) => {
-        const idx = prev.findIndex((c) => c._id === msg.chat);
-        if (idx === -1) return prev;
+      setChats(prev => {
+        const idx = prev.findIndex(c => {
+          return c._id === msg.chat;
+        });
+        if (idx === -1) {
+          return prev;
+        }
         const updated = {
           ...prev[idx],
           lastMessage: msg as unknown as Chat["lastMessage"],
           updatedAt: msg.createdAt,
           unreadCount: (prev[idx].unreadCount || 0) + 1,
         };
-        return [updated, ...prev.filter((_, i) => i !== idx)];
+        return [
+          updated,
+          ...prev.filter((_, i) => {
+            return i !== idx;
+          }),
+        ];
       });
 
-      // Decrypt the incoming encrypted message for the preview.
+      
       if (msg.encryptedContent && msg.nonce && me?._id) {
-        setChats((currentChats) => {
-          const chat = currentChats.find((c) => c._id === msg.chat);
-          if (!chat || chat.isGroup) return currentChats;
+        setChats(currentChats => {
+          const chat = currentChats.find(c => {
+            return c._id === msg.chat;
+          });
+          if (!chat || chat.isGroup) {
+            return currentChats;
+          }
 
-          const other = chat.members.find((m) => m._id !== me._id);
-          if (!other) return currentChats;
+          const other = chat.members.find(m => {
+            return m._id !== me._id;
+          });
+          if (!other) {
+            return currentChats;
+          }
 
           const myKp = getOrCreateKeyPair(me._id);
           const cached = sharedSecretsCache.current.get(other._id);
@@ -160,7 +181,7 @@ export default function ChatsPage() {
           const tryDecrypt = (secret: Uint8Array) => {
             const decrypted = decryptMessage(msg.encryptedContent!, msg.nonce!, secret);
             if (decrypted !== null) {
-              setDecryptedPreviews((prev) => {
+              setDecryptedPreviews(prev => {
                 const next = new Map(prev);
                 next.set(msg.chat, decrypted);
                 return next;
@@ -174,7 +195,9 @@ export default function ChatsPage() {
             authApi
               .getPublicKey(other._id)
               .then(({ publicKey }) => {
-                if (!publicKey) return;
+                if (!publicKey) {
+                  return;
+                }
                 const secret = deriveSharedSecret(publicKey, myKp.secretKey);
                 sharedSecretsCache.current.set(other._id, secret);
                 tryDecrypt(secret);
@@ -188,11 +211,21 @@ export default function ChatsPage() {
     };
 
     const onRead = ({ chatId }: { chatId: string }) => {
-      setChats((prev) => prev.map((c) => (c._id === chatId ? { ...c, unreadCount: 0 } : c)));
+      setChats(prev => {
+        return prev.map(c => {
+          return c._id === chatId ? { ...c, unreadCount: 0 } : c;
+        });
+      });
     };
 
     const onNewChat = (newChat: Chat) => {
-      setChats((prev) => prev.find((c) => c._id === newChat._id) ? prev : [newChat, ...prev]);
+      setChats(prev => {
+        return prev.find(c => {
+          return c._id === newChat._id;
+        })
+          ? prev
+          : [newChat, ...prev];
+      });
     };
 
     socket.on("message:new", onNew);
@@ -206,7 +239,7 @@ export default function ChatsPage() {
     };
   }, [socket, me?._id]);
 
-  /** Debounced dual search — runs user and group searches independently in parallel. */
+  
   useEffect(() => {
     if (!q.trim()) {
       setContactResults([]);
@@ -221,9 +254,21 @@ export default function ChatsPage() {
       try {
         const userResult = await profileApi.search(q.trim(), 1);
         const existingIds = new Set(
-          chats.filter((c) => !c.isGroup).flatMap((c) => c.members.map((m) => m._id))
+          chats
+            .filter(c => {
+              return !c.isGroup;
+            })
+            .flatMap(c => {
+              return c.members.map(m => {
+                return m._id;
+              });
+            })
         );
-        setContactResults(userResult.data.filter((u) => u._id !== me?._id && !existingIds.has(u._id)));
+        setContactResults(
+          userResult.data.filter(u => {
+            return u._id !== me?._id && !existingIds.has(u._id);
+          })
+        );
         setContactHasMore(userResult.hasMore);
       } catch {
         setContactResults([]);
@@ -231,32 +276,53 @@ export default function ChatsPage() {
 
       try {
         const groupResult = await chatApi.searchGroups(q.trim(), 1);
-        const existingGroupIds = new Set(chats.filter((c) => c.isGroup).map((c) => c._id));
-        setGroupResults(groupResult.data.filter((g: GroupResult) => !existingGroupIds.has(g._id)));
+        const existingGroupIds = new Set(
+          chats
+            .filter(c => {
+              return c.isGroup;
+            })
+            .map(c => {
+              return c._id;
+            })
+        );
+        setGroupResults(
+          groupResult.data.filter((g: GroupResult) => {
+            return !existingGroupIds.has(g._id);
+          })
+        );
       } catch {
         setGroupResults([]);
       }
 
       setSearching(false);
     }, 300);
-    return () => clearTimeout(id);
+    return () => {
+      return clearTimeout(id);
+    };
   }, [q, chats, me]);
 
-  /** Fetches the next page of user search results and appends them to the list. */
+  
   const loadMoreContacts = async () => {
-    if (loadingMore || !contactHasMore) return;
+    if (loadingMore || !contactHasMore) {
+      return;
+    }
     setLoadingMore(true);
     try {
       const nextPage = contactPage + 1;
       const result = await profileApi.search(q.trim(), nextPage);
-      setContactResults((prev) => [...prev, ...result.data]);
+      setContactResults(prev => {
+        return [...prev, ...result.data];
+      });
       setContactHasMore(result.hasMore);
       setContactPage(nextPage);
-    } catch {/* */}
-    finally { setLoadingMore(false); }
+    } catch {
+      
+    } finally {
+      setLoadingMore(false);
+    }
   };
 
-  /** Opens or creates a DM with the given user and navigates into it. */
+  
   const openDM = async (userId: string) => {
     setActionLoading(userId);
     try {
@@ -269,12 +335,14 @@ export default function ChatsPage() {
     }
   };
 
-  /** Sends a friend request to a private user found in search results. */
+  
   const sendRequest = async (userId: string) => {
     setActionLoading(userId);
     try {
       await requestApi.send(userId);
-      setSentRequests((p) => new Set(p).add(userId));
+      setSentRequests(p => {
+        return new Set(p).add(userId);
+      });
       toast.success("Friend request sent");
     } catch (e) {
       toast.error(apiError(e, "Failed to send request"));
@@ -283,16 +351,18 @@ export default function ChatsPage() {
     }
   };
 
-  /** Requests to join (or directly joins if public) a group found in search results. */
+  
   const joinGroup = async (group: GroupResult) => {
     setActionLoading(group._id);
     try {
-      const result = await chatApi.requestJoin(group._id) as { joined: boolean; message: string };
+      const result = (await chatApi.requestJoin(group._id)) as { joined: boolean; message: string };
       if (result.joined) {
         toast.success("Joined the group!");
         navigate(`/chats/${group._id}`);
       } else {
-        setGroupActions((p) => ({ ...p, [group._id]: "requested" }));
+        setGroupActions(p => {
+          return { ...p, [group._id]: "requested" };
+        });
         toast.success("Join request sent");
       }
     } catch (e) {
@@ -302,17 +372,29 @@ export default function ChatsPage() {
     }
   };
 
-  const otherMember = (c: Chat) => c.members.find((m) => m._id !== me?._id) || c.members[0];
-  const unreadCount = chats.filter((c) => (c.unreadCount || 0) > 0).length;
+  const otherMember = (c: Chat) => {
+    return (
+      c.members.find(m => {
+        return m._id !== me?._id;
+      }) || c.members[0]
+    );
+  };
+  const unreadCount = chats.filter(c => {
+    return (c.unreadCount || 0) > 0;
+  }).length;
 
-  const tabFilteredChats = chats.filter((c) => {
-    if (activeTab === "unread") return (c.unreadCount || 0) > 0;
-    if (activeTab === "groups") return c.isGroup;
+  const tabFilteredChats = chats.filter(c => {
+    if (activeTab === "unread") {
+      return (c.unreadCount || 0) > 0;
+    }
+    if (activeTab === "groups") {
+      return c.isGroup;
+    }
     return true;
   });
 
   const visibleChats = q.trim()
-    ? tabFilteredChats.filter((c) => {
+    ? tabFilteredChats.filter(c => {
         const name = c.isGroup
           ? c.name?.toLowerCase()
           : (otherMember(c)?.fullName || otherMember(c)?.username || "").toLowerCase();
@@ -327,43 +409,38 @@ export default function ChatsPage() {
     { key: "blocked", label: "Blocked" },
   ];
 
-  /**
-   * FIX (Bug 2): Returns the preview text for the last message in a chat row.
-   *
-   * For encrypted DMs we now look up the decrypted preview that was computed
-   * asynchronously in the background. If decryption hasn't finished yet (or
-   * failed silently) we return an empty string — the row looks clean and the
-   * user never sees "🔒 Encrypted message" as a permanent state.
-   *
-   * @param chatId  - used to look up the decrypted preview map.
-   * @param lastMsg - the raw lastMessage object from the Chat record.
-   */
+  
   function getLastMessagePreview(
     chatId: string,
-    lastMsg: Chat["lastMessage"] | undefined | null,
+    lastMsg: Chat["lastMessage"] | undefined | null
   ): string {
-    if (!lastMsg) return "No messages yet";
+    if (!lastMsg) {
+      return "No messages yet";
+    }
 
     if (lastMsg.encryptedContent) {
-      // Return the decrypted text if available, otherwise empty while loading.
+      
       return decryptedPreviews.get(chatId) ?? "";
     }
 
-    if (lastMsg.content) return lastMsg.content;
-    if (lastMsg.type === "image") return "📷 Photo";
-    if (lastMsg.type === "file") return "📎 File";
+    if (lastMsg.content) {
+      return lastMsg.content;
+    }
+    if (lastMsg.type === "image") {
+      return "📷 Photo";
+    }
+    if (lastMsg.type === "file") {
+      return "📎 File";
+    }
     return "No messages yet";
   }
 
-  /** Renders a single row in the existing chats list. */
+  
   const renderChatRow = (c: Chat) => {
     const other = c.isGroup ? null : otherMember(c);
     const title = c.isGroup ? c.name : other?.fullName || other?.username || "Unknown";
     const online =
-      other &&
-      blockedIds !== null &&
-      !blockedIds.has(other._id) &&
-      onlineUsers.has(other._id);
+      other && blockedIds !== null && !blockedIds.has(other._id) && onlineUsers.has(other._id);
     const lastText = getLastMessagePreview(c._id, c.lastMessage);
     const hasUnread = (c.unreadCount || 0) > 0;
     const avatarPath = c.isGroup ? `/chats/${c._id}/info` : other ? `/profile/${other._id}` : null;
@@ -374,23 +451,48 @@ export default function ChatsPage() {
         className="flex items-center gap-3 px-4 border-b border-border/40 hover:bg-bg-panel transition"
       >
         {avatarPath ? (
-          <Link to={avatarPath} className="shrink-0 py-3" onClick={(e) => e.stopPropagation()}>
-            <Avatar src={c.isGroup ? c.groupAvatar : other?.avatar} name={title || ""} online={online ?? false} size={48} />
+          <Link
+            to={avatarPath}
+            className="shrink-0 py-3"
+            onClick={e => {
+              return e.stopPropagation();
+            }}
+          >
+            <Avatar
+              src={c.isGroup ? c.groupAvatar : other?.avatar}
+              name={title || ""}
+              online={online ?? false}
+              size={48}
+            />
           </Link>
         ) : (
           <div className="shrink-0 py-3">
-            <Avatar src={c.isGroup ? c.groupAvatar : other?.avatar} name={title || ""} online={online ?? false} size={48} />
+            <Avatar
+              src={c.isGroup ? c.groupAvatar : other?.avatar}
+              name={title || ""}
+              online={online ?? false}
+              size={48}
+            />
           </div>
         )}
         <Link to={`/chats/${c._id}`} className="flex-1 min-w-0 py-3">
           <div className="flex items-center justify-between gap-2">
-            <h3 className={cn("truncate", hasUnread ? "font-bold text-white" : "font-medium")}>{title}</h3>
-            <span className={cn("text-xs shrink-0", hasUnread ? "text-accent font-semibold" : "text-muted")}>
+            <h3 className={cn("truncate", hasUnread ? "font-bold text-white" : "font-medium")}>
+              {title}
+            </h3>
+            <span
+              className={cn(
+                "text-xs shrink-0",
+                hasUnread ? "text-accent font-semibold" : "text-muted"
+              )}
+            >
               {formatChatTime(c.updatedAt)}
             </span>
           </div>
           <div className="flex items-center justify-between gap-2 mt-0.5">
-            <p className={cn("text-sm truncate", hasUnread ? "text-white/80" : "text-muted")}>{lastText}</p>
+            <p className={cn("text-sm truncate", hasUnread ? "text-white/80" : "text-muted")}>
+              {lastText}
+            </p>
             {hasUnread && (
               <span className="bg-accent text-black text-[11px] font-bold rounded-full min-w-5 h-5 px-1.5 flex items-center justify-center shrink-0">
                 {c.unreadCount! > 99 ? "99+" : c.unreadCount}
@@ -402,7 +504,7 @@ export default function ChatsPage() {
     );
   };
 
-  /** Renders a user row in the search results with context-aware action button. */
+  
   const renderContactRow = (u: User) => {
     const isLoading = actionLoading === u._id;
     const requestSent = sentRequests.has(u._id);
@@ -415,7 +517,13 @@ export default function ChatsPage() {
         key={u._id}
         className="flex items-center gap-3 px-4 py-3 border-b border-border/40 hover:bg-bg-panel transition"
       >
-        <Link to={`/profile/${u._id}`} className="shrink-0" onClick={(e) => e.stopPropagation()}>
+        <Link
+          to={`/profile/${u._id}`}
+          className="shrink-0"
+          onClick={e => {
+            return e.stopPropagation();
+          }}
+        >
           <Avatar src={u.avatar} name={u.fullName || u.username} />
         </Link>
         <Link to={`/profile/${u._id}`} className="flex-1 min-w-0">
@@ -427,79 +535,137 @@ export default function ChatsPage() {
         </Link>
         {isAccepted ? (
           <button
-            onClick={() => openDM(u._id)}
+            onClick={() => {
+              return openDM(u._id);
+            }}
             disabled={isLoading}
             className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-accent/10 text-accent hover:bg-accent hover:text-black transition"
           >
-            {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><MessageCircle className="w-3.5 h-3.5" /> Message</>}
+            {isLoading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <>
+                <MessageCircle className="w-3.5 h-3.5" /> Message
+              </>
+            )}
           </button>
         ) : isPending ? (
-          <button disabled className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-bg-panel text-muted cursor-default">
+          <button
+            disabled
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-bg-panel text-muted cursor-default"
+          >
             Sent
           </button>
         ) : u.isPrivate ? (
           <button
-            onClick={() => sendRequest(u._id)}
+            onClick={() => {
+              return sendRequest(u._id);
+            }}
             disabled={isLoading}
             className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-accent/10 text-accent hover:bg-accent hover:text-black transition"
           >
-            {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><UserPlus className="w-3.5 h-3.5" /> Add</>}
+            {isLoading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <>
+                <UserPlus className="w-3.5 h-3.5" /> Add
+              </>
+            )}
           </button>
         ) : (
           <button
-            onClick={() => openDM(u._id)}
+            onClick={() => {
+              return openDM(u._id);
+            }}
             disabled={isLoading}
             className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-accent/10 text-accent hover:bg-accent hover:text-black transition"
           >
-            {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><MessageCircle className="w-3.5 h-3.5" /> Message</>}
+            {isLoading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <>
+                <MessageCircle className="w-3.5 h-3.5" /> Message
+              </>
+            )}
           </button>
         )}
       </div>
     );
   };
 
-  /** Renders a group row in the search results with join/message/request button. */
+  
   const renderGroupSearchRow = (g: GroupResult) => {
     const isLoading = actionLoading === g._id;
     const action = groupActions[g._id];
     const isMember = g.isMember || action === "joined";
     let buttonContent: React.ReactNode;
-    let buttonClass = "shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition";
+    let buttonClass =
+      "shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition";
     let onClickHandler: (() => void) | undefined;
     let isDisabled = false;
 
     if (isMember) {
-      buttonContent = <><MessageCircle className="w-3.5 h-3.5" /> Message</>;
+      buttonContent = (
+        <>
+          <MessageCircle className="w-3.5 h-3.5" /> Message
+        </>
+      );
       buttonClass += " bg-accent/10 text-accent hover:bg-accent hover:text-black";
-      onClickHandler = () => navigate(`/chats/${g._id}`);
+      onClickHandler = () => {
+        return navigate(`/chats/${g._id}`);
+      };
     } else if (action === "requested" || g.hasRequested) {
       buttonContent = "Requested";
       buttonClass += " bg-bg-panel text-muted cursor-default";
       isDisabled = true;
     } else if (g.isPublic) {
-      buttonContent = isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Users className="w-3.5 h-3.5" /> Join</>;
+      buttonContent = isLoading ? (
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+      ) : (
+        <>
+          <Users className="w-3.5 h-3.5" /> Join
+        </>
+      );
       buttonClass += " bg-accent/10 text-accent hover:bg-accent hover:text-black";
-      onClickHandler = () => joinGroup(g);
+      onClickHandler = () => {
+        return joinGroup(g);
+      };
       isDisabled = isLoading;
     } else {
-      buttonContent = isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><UserPlus className="w-3.5 h-3.5" /> Request</>;
+      buttonContent = isLoading ? (
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+      ) : (
+        <>
+          <UserPlus className="w-3.5 h-3.5" /> Request
+        </>
+      );
       buttonClass += " bg-accent/10 text-accent hover:bg-accent hover:text-black";
-      onClickHandler = () => joinGroup(g);
+      onClickHandler = () => {
+        return joinGroup(g);
+      };
       isDisabled = isLoading;
     }
 
     return (
-      <div key={g._id} className="flex items-center gap-3 px-4 py-3 border-b border-border/40 hover:bg-bg-panel transition">
+      <div
+        key={g._id}
+        className="flex items-center gap-3 px-4 py-3 border-b border-border/40 hover:bg-bg-panel transition"
+      >
         <div className="shrink-0">
           <Avatar src={g.groupAvatar} name={g.name} size={48} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-medium truncate flex items-center gap-1.5">
             {g.name}
-            {g.isPublic ? <Globe className="w-3 h-3 text-accent shrink-0" /> : <Lock className="w-3 h-3 text-muted shrink-0" />}
+            {g.isPublic ? (
+              <Globe className="w-3 h-3 text-accent shrink-0" />
+            ) : (
+              <Lock className="w-3 h-3 text-muted shrink-0" />
+            )}
           </div>
           <div className="text-sm text-muted truncate">
-            {g.memberCount} member{g.memberCount !== 1 ? "s" : ""}{g.description ? ` · ${g.description}` : ""}
+            {g.memberCount} member{g.memberCount !== 1 ? "s" : ""}
+            {g.description ? ` · ${g.description}` : ""}
           </div>
         </div>
         <button onClick={onClickHandler} disabled={isDisabled} className={buttonClass}>
@@ -522,55 +688,81 @@ export default function ChatsPage() {
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
           <input
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={e => {
+              return setQ(e.target.value);
+            }}
             placeholder="Search users or groups…"
             className="input pl-10 pr-9 rounded-full"
           />
           {q && (
-            <button onClick={() => setQ("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-white">
+            <button
+              onClick={() => {
+                return setQ("");
+              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-white"
+            >
               <X className="w-4 h-4" />
             </button>
           )}
         </div>
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-0.5">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => tab.key === "blocked" ? navigate("/blocked") : setActiveTab(tab.key)}
-              className={cn(
-                "shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition",
-                activeTab === tab.key && tab.key !== "blocked"
-                  ? "bg-accent text-black"
-                  : "bg-bg-panel text-muted hover:text-white"
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
+          {tabs.map(tab => {
+            return (
+              <button
+                key={tab.key}
+                onClick={() => {
+                  return tab.key === "blocked" ? navigate("/blocked") : setActiveTab(tab.key);
+                }}
+                className={cn(
+                  "shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition",
+                  activeTab === tab.key && tab.key !== "blocked"
+                    ? "bg-accent text-black"
+                    : "bg-bg-panel text-muted hover:text-white"
+                )}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
       </header>
 
       <div className="flex-1 overflow-y-auto pb-20 md:pb-0">
         {q.trim() ? (
           <div>
-            {visibleChats.filter((c) => !c.isGroup).length > 0 && (
+            {visibleChats.filter(c => {
+              return !c.isGroup;
+            }).length > 0 && (
               <>
-                <div className="px-4 pt-3 pb-1 text-xs uppercase text-muted font-semibold tracking-wider">Chats</div>
-                {visibleChats.filter((c) => !c.isGroup).map(renderChatRow)}
+                <div className="px-4 pt-3 pb-1 text-xs uppercase text-muted font-semibold tracking-wider">
+                  Chats
+                </div>
+                {visibleChats
+                  .filter(c => {
+                    return !c.isGroup;
+                  })
+                  .map(renderChatRow)}
               </>
             )}
-            {visibleChats.filter((c) => c.isGroup).length > 0 && (
+            {visibleChats.filter(c => {
+              return c.isGroup;
+            }).length > 0 && (
               <>
                 <div className="px-4 pt-3 pb-1 text-xs uppercase text-muted font-semibold tracking-wider flex items-center gap-1.5">
                   <Users className="w-3.5 h-3.5" /> My Groups
                 </div>
-                {visibleChats.filter((c) => c.isGroup).map(renderChatRow)}
+                {visibleChats
+                  .filter(c => {
+                    return c.isGroup;
+                  })
+                  .map(renderChatRow)}
               </>
             )}
             {(groupResults.length > 0 || (searching && q.trim().length > 0)) && (
               <>
                 <div className="px-4 pt-3 pb-1 text-xs uppercase text-muted font-semibold tracking-wider flex items-center gap-1.5">
-                  <Globe className="w-3.5 h-3.5" /> Groups {searching && <Loader2 className="w-3 h-3 animate-spin" />}
+                  <Globe className="w-3.5 h-3.5" /> Groups{" "}
+                  {searching && <Loader2 className="w-3 h-3 animate-spin" />}
                 </div>
                 {groupResults.map(renderGroupSearchRow)}
               </>
@@ -579,15 +771,21 @@ export default function ChatsPage() {
               People {searching && <Loader2 className="w-3 h-3 animate-spin" />}
             </div>
             {contactResults.length === 0 && !searching ? (
-              visibleChats.length === 0 && groupResults.length === 0
-                ? <EmptyState icon={Search} title="No results found" />
-                : <p className="px-4 py-2 text-sm text-muted">No new contacts found</p>
+              visibleChats.length === 0 && groupResults.length === 0 ? (
+                <EmptyState icon={Search} title="No results found" />
+              ) : (
+                <p className="px-4 py-2 text-sm text-muted">No new contacts found</p>
+              )
             ) : (
               <>
                 {contactResults.map(renderContactRow)}
                 {contactHasMore && (
                   <div className="flex justify-center py-3">
-                    <button onClick={loadMoreContacts} disabled={loadingMore} className="btn-ghost text-sm text-muted">
+                    <button
+                      onClick={loadMoreContacts}
+                      disabled={loadingMore}
+                      className="btn-ghost text-sm text-muted"
+                    >
                       {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : "Load more"}
                     </button>
                   </div>
@@ -602,8 +800,18 @@ export default function ChatsPage() {
         ) : visibleChats.length === 0 ? (
           <EmptyState
             icon={activeTab === "groups" ? Users : MessageCircle}
-            title={activeTab === "unread" ? "No unread chats" : activeTab === "groups" ? "No groups yet" : "No chats yet"}
-            description={activeTab === "all" ? "Search for a user or group above to start a conversation." : undefined}
+            title={
+              activeTab === "unread"
+                ? "No unread chats"
+                : activeTab === "groups"
+                  ? "No groups yet"
+                  : "No chats yet"
+            }
+            description={
+              activeTab === "all"
+                ? "Search for a user or group above to start a conversation."
+                : undefined
+            }
           />
         ) : (
           visibleChats.map(renderChatRow)

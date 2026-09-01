@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { Spinner } from "@/components/Spinner";
 import { apiError } from "@/api/client";
 
-/** Shape returned by GET /block — each entry wraps the populated User. */
+
 interface BlockedUserEntry {
   _id: string;
   blocker: string;
@@ -17,7 +17,7 @@ interface BlockedUserEntry {
   createdAt: string;
 }
 
-/** Displays the list of users blocked by the current user, with unblock action. */
+
 export default function BlockedPage() {
   const navigate = useNavigate();
   const [entries, setEntries] = useState<BlockedUserEntry[]>([]);
@@ -25,18 +25,29 @@ export default function BlockedPage() {
   const [unblocking, setUnblocking] = useState<string | null>(null);
 
   useEffect(() => {
-    api.get<BlockedUserEntry[]>("/block")
-      .then((r) => setEntries(r.data))
-      .catch((e) => toast.error(apiError(e)))
-      .finally(() => setLoading(false));
+    api
+      .get<BlockedUserEntry[]>("/block")
+      .then(r => {
+        return setEntries(r.data);
+      })
+      .catch(e => {
+        return toast.error(apiError(e));
+      })
+      .finally(() => {
+        return setLoading(false);
+      });
   }, []);
 
-  /** Removes the block record for the given user ID and updates local state. */
+  
   const unblock = async (blockedUserId: string) => {
     setUnblocking(blockedUserId);
     try {
       await api.delete(`/block/${blockedUserId}`);
-      setEntries((prev) => prev.filter((e) => e.blocked._id !== blockedUserId));
+      setEntries(prev => {
+        return prev.filter(e => {
+          return e.blocked._id !== blockedUserId;
+        });
+      });
       toast.success("Unblocked");
     } catch (e) {
       toast.error(apiError(e));
@@ -48,7 +59,12 @@ export default function BlockedPage() {
   return (
     <div className="flex flex-col h-full">
       <header className="flex items-center gap-3 px-4 py-3 border-b border-border bg-bg-elevated shrink-0">
-        <button onClick={() => navigate(-1)} className="p-1.5 hover:bg-bg-panel rounded-lg">
+        <button
+          onClick={() => {
+            return navigate(-1);
+          }}
+          className="p-1.5 hover:bg-bg-panel rounded-lg"
+        >
           <ArrowLeft className="w-5 h-5" />
         </button>
         <h1 className="text-lg font-semibold">Blocked users</h1>
@@ -56,7 +72,9 @@ export default function BlockedPage() {
 
       <div className="flex-1 overflow-y-auto pb-20">
         {loading ? (
-          <div className="flex justify-center py-20"><Spinner /></div>
+          <div className="flex justify-center py-20">
+            <Spinner />
+          </div>
         ) : entries.length === 0 ? (
           <EmptyState
             icon={Shield}
@@ -64,7 +82,7 @@ export default function BlockedPage() {
             description="People you block will appear here."
           />
         ) : (
-          entries.map((entry) => {
+          entries.map(entry => {
             const u = entry.blocked;
             return (
               <div
@@ -77,7 +95,9 @@ export default function BlockedPage() {
                   <div className="text-sm text-muted truncate">@{u.username}</div>
                 </div>
                 <button
-                  onClick={() => unblock(u._id)}
+                  onClick={() => {
+                    return unblock(u._id);
+                  }}
                   disabled={unblocking === u._id}
                   className="btn-ghost text-sm text-red-400 hover:text-red-300 disabled:opacity-50"
                 >

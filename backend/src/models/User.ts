@@ -1,20 +1,33 @@
-import mongoose, { Schema } from 'mongoose';
-import bcrypt from 'bcryptjs';
-import { IUser } from '../types/index.js';
+import mongoose, { Schema } from "mongoose";
+import bcrypt from "bcryptjs";
+import { IUser } from "../types/index.js";
 
 const userSchema = new Schema<IUser>(
   {
-    username: { type: String, required: true, unique: true, trim: true, minlength: 3, maxlength: 30 },
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    username: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+      minlength: 3,
+      maxlength: 30,
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
     password: { type: String, required: true, minlength: 6, select: false },
-    avatar: { type: String, default: '' },
-    bio: { type: String, maxlength: 200, default: '' },
-    fullName: { type: String, trim: true, default: '' },
+    avatar: { type: String, default: "" },
+    bio: { type: String, maxlength: 200, default: "" },
+    fullName: { type: String, trim: true, default: "" },
     isPrivate: { type: Boolean, default: true },
     isOnline: { type: Boolean, default: false },
     lastSeen: { type: Date, default: Date.now },
     isVerified: { type: Boolean, default: false },
-    /** SHA-256 hash of the current 6-digit email-verification OTP (raw code is emailed, never stored). */
+    
     verifyEmailOtp: { type: String, select: false },
     verifyEmailOtpExpire: { type: Date, select: false },
     education: [
@@ -38,25 +51,30 @@ const userSchema = new Schema<IUser>(
         description: String,
       },
     ],
-    /** SHA-256 hash of the current 6-digit password-reset OTP (raw code is emailed, never stored). */
+    
     resetPasswordOtp: { type: String, select: false },
     resetPasswordOtpExpire: { type: Date, select: false },
-    /** NaCl Curve25519 public key (base64) for E2E encryption. Registered by the client on login. */
-    publicKey: { type: String, default: '' },
+    
+    publicKey: { type: String, default: "" },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-/** Hashes the password with bcrypt before saving if it was modified. */
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
+
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) {
+    return next();
+  }
   this.password = await bcrypt.hash(this.password, 12);
   next();
 });
 
-/** Compares a plaintext password against the stored bcrypt hash. */
-userSchema.methods.matchPassword = function (enteredPassword: string): Promise<boolean> {
+
+userSchema.methods.matchPassword = function (
+  enteredPassword: string,
+): Promise<boolean> {
   return bcrypt.compare(enteredPassword, this.password as string);
 };
 
-export default (mongoose.models.User as mongoose.Model<IUser>) || mongoose.model<IUser>('User', userSchema);
+export default (mongoose.models.User as mongoose.Model<IUser>) ||
+  mongoose.model<IUser>("User", userSchema);

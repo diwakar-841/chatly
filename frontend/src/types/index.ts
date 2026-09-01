@@ -1,4 +1,4 @@
-/** Authenticated user returned from the API. */
+
 export interface User {
   _id: string;
   username: string;
@@ -11,26 +11,26 @@ export interface User {
   isVerified?: boolean;
   lastSeen?: string;
   createdAt?: string;
-  /** Friendship status relative to the requesting user (e.g. "none", "accepted"). */
+  
   friendStatus?: string;
-  /** NaCl Curve25519 public key (base64) for E2E encryption. */
+  
   publicKey?: string;
 }
 
-/** Payload returned by login and register endpoints. */
+
 export interface AuthResult {
   accessToken: string;
   refreshToken: string;
   user: User;
 }
 
-/** A single emoji reaction on a message. */
+
 export interface Reaction {
   user: string;
   emoji: string;
 }
 
-/** A chat message with optional media, reply reference, and reactions. */
+
 export interface Message {
   _id: string;
   chat: string;
@@ -44,19 +44,19 @@ export interface Message {
   deliveredTo?: string[];
   deleted?: boolean;
   isPinned?: boolean;
-  /** True when the sender has edited this message at least once. */
+  
   isEdited?: boolean;
-  /** Timestamp of the last edit. */
+  
   editedAt?: string | null;
-  /** Base64 NaCl ciphertext — present for E2E-encrypted DM messages. */
+  
   encryptedContent?: string;
-  /** Base64 nonce paired with encryptedContent. */
+  
   nonce?: string;
   createdAt: string;
   updatedAt: string;
 }
 
-/** A DM or group chat with members, admins, and optional invite/request queues. */
+
 export interface Chat {
   _id: string;
   isGroup: boolean;
@@ -70,21 +70,16 @@ export interface Chat {
   joinRequests?: string[];
   pendingInvites?: string[];
   lastMessage?: Pick<
-  Message,
-  "_id" |
-  "content" |
-  "encryptedContent" |
-  "nonce" |
-  "type" |
-  "createdAt"
-> | null;
+    Message,
+    "_id" | "content" | "encryptedContent" | "nonce" | "type" | "createdAt"
+  > | null;
   pinnedMessages?: string[];
   unreadCount?: number;
   updatedAt: string;
   createdAt: string;
 }
 
-/** Lightweight group shape returned by the group search endpoint. */
+
 export interface GroupResult {
   _id: string;
   name: string;
@@ -97,7 +92,7 @@ export interface GroupResult {
   isInvited: boolean;
 }
 
-/** A friend request with fully populated sender and recipient. */
+
 export interface FriendRequest {
   _id: string;
   sender: User;
@@ -106,14 +101,21 @@ export interface FriendRequest {
   createdAt: string;
 }
 
-/** All possible friendship states between the current user and another user. */
+
 export type RequestStatus = "none" | "pending_sent" | "pending_received" | "accepted" | "blocked";
 
-/** An in-app notification record. */
+
 export interface Notification {
   _id: string;
   recipient: string;
-  type: "request" | "request_accepted" | "message" | "group_add" | "group_invite" | "group_join_request" | "system";
+  type:
+    | "request"
+    | "request_accepted"
+    | "message"
+    | "group_add"
+    | "group_invite"
+    | "group_join_request"
+    | "system";
   message: string;
   data?: Record<string, unknown>;
   isRead: boolean;
@@ -121,7 +123,7 @@ export interface Notification {
   createdAt: string;
 }
 
-/** Generic paginated response wrapper used by list endpoints. */
+
 export interface PaginatedResult<T> {
   data: T[];
   total: number;

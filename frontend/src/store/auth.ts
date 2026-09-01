@@ -7,72 +7,65 @@ interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
 
-  /** Stores the full auth result from login or register. */
-  setAuth: (data: {
-    user: User;
-    accessToken: string;
-    refreshToken: string;
-  }) => void;
+  
+  setAuth: (data: { user: User; accessToken: string; refreshToken: string }) => void;
 
-  /** Updates both tokens independently of the user object (used by token refresh). */
+  
   setTokens: (accessToken: string, refreshToken: string) => void;
 
-  /** Updates just the user object (used after profile changes). */
+  
   setUser: (user: User) => void;
 
-  /** Clears all auth state, removes persisted auth and E2E keys. */
+  
   clear: () => void;
 }
 
-/**
- * Persistent Zustand store for authentication state.
- * Survives page reloads via localStorage under the key `chatly-auth`.
- */
+
 export const useAuth = create<AuthState>()(
   persist(
-    (set) => ({
-      user: null,
-      accessToken: null,
-      refreshToken: null,
+    set => {
+      return {
+        user: null,
+        accessToken: null,
+        refreshToken: null,
 
-      setAuth: ({ user, accessToken, refreshToken }) =>
-        set({
-          user,
-          accessToken,
-          refreshToken,
-        }),
+        setAuth: ({ user, accessToken, refreshToken }) => {
+          return set({
+            user,
+            accessToken,
+            refreshToken,
+          });
+        },
 
-      setTokens: (accessToken, refreshToken) =>
-        set({
-          accessToken,
-          refreshToken,
-        }),
+        setTokens: (accessToken, refreshToken) => {
+          return set({
+            accessToken,
+            refreshToken,
+          });
+        },
 
-      setUser: (user) =>
-        set({
-          user,
-        }),
+        setUser: user => {
+          return set({ user });
+        },
 
-      clear: () => {
-        // Remove persisted E2E encryption keys
-        localStorage.removeItem("chatly-e2e-keys");
+        clear: () => {
+          
+          localStorage.removeItem("chatly-e2e-keys");
 
-        // Remove persisted auth storage
-        localStorage.removeItem("chatly-auth");
+          
+          localStorage.removeItem("chatly-auth");
 
-        // Reset in-memory state
-        set({
-          user: null,
-          accessToken: null,
-          refreshToken: null,
-        });
-        
-        window.location.href = "/login";
-        
-      },
-    }),
-    {
-      name: "chatly-auth",
-    }
+          
+          set({
+            user: null,
+            accessToken: null,
+            refreshToken: null,
+          });
+
+          window.location.href = "/login";
+        },
+      };
+    },
+    { name: "chatly-auth" }
   )
 );

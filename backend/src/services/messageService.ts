@@ -1,135 +1,173 @@
-import validator from 'validator';
-import { Types } from 'mongoose';
-import Message from '../models/Message.js';
-import Chat from '../models/Chat.js';
-import BlockedUser from '../models/BlockedUser.js';
-import Notification from '../models/Notification.js';
-import { getIO } from '../config/socket.js';
-import logger from '../utils/logger.js';
-import { AppError } from '../utils/errors.js';
-import { IMessage, SendMessageInput, EditMessageInput } from '../types/index.js';
-import User from '../models/User.js';
-import Request from '../models/Request.js';
+import validator from "validator";
+import { Types } from "mongoose";
+import Message from "../models/Message.js";
+import Chat from "../models/Chat.js";
+import BlockedUser from "../models/BlockedUser.js";
+import Notification from "../models/Notification.js";
+import { getIO } from "../config/socket.js";
+import logger from "../utils/logger.js";
+import { AppError } from "../utils/errors.js";
+import {
+  IMessage,
+  SendMessageInput,
+  EditMessageInput,
+} from "../types/index.js";
+import User from "../models/User.js";
+import Request from "../models/Request.js";
 
 const MAX_MESSAGE_LENGTH = 2000;
 
-/**
- * Sends a message to a chat room. Enforces block and friendship rules for DMs,
- * sanitises content (skipped for E2E-encrypted payloads), increments per-member
- * unread counts, and emits socket events + notifications to every other member.
- */
+
 export const sendMessage = async ({
-  chatId, content, type, replyTo, mediaUrl, senderId, senderUsername,
-  encryptedContent, nonce,
+  chatId,
+  content,
+  type,
+  replyTo,
+  mediaUrl,
+  senderId,
+  senderUsername,
+  encryptedContent,
+  nonce,
 }: SendMessageInput): Promise<IMessage> => {
   const isEncrypted = !!(encryptedContent && nonce);
 
-  const sanitizedContent = (!isEncrypted && content)
-    ? String(content).trim().slice(0, MAX_MESSAGE_LENGTH)
-    : '';
+  const sanitizedContent =
+    !isEncrypted && content
+      ? String(content).trim().slice(0, MAX_MESSAGE_LENGTH)
+      : "";
 
   if (!sanitizedContent && !mediaUrl && !isEncrypted) {
-    throw new AppError('Message must have content or a file', 400);
+    throw new AppError("Message must have content or a file", 400);
   }
 
   const chat = await Chat.findOne({ _id: chatId, members: senderId });
-  if (!chat) throw new AppError('Access denied', 403);
+  if (!chat) {
+    throw new AppError("Access denied", 403);
+  }
 
   if (!chat.isGroup) {
-    const otherMember = chat.members.find((m) => m.toString() !== senderId.toString());
+    const otherMember = chat.members.find((m) => {
+      return m.toString() !== senderId.toString();
+    });
     if (otherMember) {
       const block = await BlockedUser.findOne({
-        $or: [{ blocker: senderId, blocked: otherMember }, { blocker: otherMember, blocked: senderId }],
+        $or: [
+          { blocker: senderId, blocked: otherMember },
+          { blocker: otherMember, blocked: senderId },
+        ],
       });
-      if (block) throw new AppError('Cannot send messages to this user', 403);
+      if (block) {
+        throw new AppError("Cannot send messages to this user", 403);
+      }
 
-      const otherUser = await User.findById(otherMember).select('isPrivate');
+      const otherUser = await User.findById(otherMember).select("isPrivate");
       if (otherUser?.isPrivate !== false) {
         const friendship = await Request.findOne({
           $or: [
-            { sender: senderId, recipient: otherMember, status: 'accepted' },
-            { sender: otherMember, recipient: senderId, status: 'accepted' },
+            { sender: senderId, recipient: otherMember, status: "accepted" },
+            { sender: otherMember, recipient: senderId, status: "accepted" },
           ],
         });
-        if (!friendship) throw new AppError('You are no longer friends with this user', 403);
+        if (!friendship) {
+          throw new AppError("You are no longer friends with this user", 403);
+        }
       }
     }
   }
 
   const message = await Message.create({
-    chat: chatId, sender: senderId,
+    chat: chatId,
+    sender: senderId,
     content: sanitizedContent,
-    type: type ?? 'text',
-    mediaUrl: mediaUrl ?? '',
+    type: type ?? "text",
+    mediaUrl: mediaUrl ?? "",
     replyTo: replyTo ?? null,
     readBy: [senderId],
     deliveredTo: [senderId],
-    encryptedContent: isEncrypted ? encryptedContent : '',
-    nonce: isEncrypted ? nonce : '',
+    encryptedContent: isEncrypted ? encryptedContent : "",
+    nonce: isEncrypted ? nonce : "",
   });
 
   await Chat.findByIdAndUpdate(chatId, {
     $set: { lastMessage: message._id },
     $inc: Object.fromEntries(
       chat.members
-        .filter((m) => m.toString() !== senderId.toString())
-        .map((m) => [`unreadCounts.${m.toString()}`, 1])
+        .filter((m) => {
+          return m.toString() !== senderId.toString();
+        })
+        .map((m) => {
+          return [`unreadCounts.${m.toString()}`, 1];
+        }),
     ),
   });
 
   const populated = (await Message.findById(message._id)
-    .populate('sender', 'username fullName avatar')
-    .populate('replyTo')) as IMessage;
+    .populate("sender", "username fullName avatar")
+    .populate("replyTo")) as IMessage;
 
   try {
     const io = getIO();
     await Promise.all(
       chat.members
-        .filter((memberId) => memberId.toString() !== senderId.toString())
+        .filter((memberId) => {
+          return memberId.toString() !== senderId.toString();
+        })
         .map(async (memberId) => {
-          io.to(memberId.toString()).emit('message:new', populated);
+          io.to(memberId.toString()).emit("message:new", populated);
           const n = await Notification.create({
-            recipient: memberId, sender: senderId, type: 'message',
+            recipient: memberId,
+            sender: senderId,
+            type: "message",
             message: `New message from ${senderUsername}`,
             link: `/chats/${chatId}`,
           });
-          io.to(memberId.toString()).emit('notification:new', n);
-        })
+          io.to(memberId.toString()).emit("notification:new", n);
+        }),
     );
   } catch (socketErr) {
-    logger.warn(`[sendMessage] Socket/notification error for chat ${chatId}: ${(socketErr as Error).message}`);
+    logger.warn(
+      `[sendMessage] Socket/notification error for chat ${chatId}: ${(socketErr as Error).message}`,
+    );
   }
 
   return populated;
 };
 
-/**
- * Edits the content of a text message. Only the sender may edit. Encrypted edits
- * (E2E DMs) pass encryptedContent + nonce instead of plain content. Sets isEdited
- * and editedAt, then broadcasts the updated message to all chat members.
- */
+
 export const editMessage = async ({
-  messageId, userId, content, encryptedContent, nonce,
+  messageId,
+  userId,
+  content,
+  encryptedContent,
+  nonce,
 }: EditMessageInput): Promise<IMessage> => {
   const message = await Message.findOne({ _id: messageId, sender: userId });
-  if (!message) throw new AppError('Message not found or access denied', 404);
-  if (message.isDeleted) throw new AppError('Cannot edit a deleted message', 400);
-  if (message.type !== 'text') throw new AppError('Only text messages can be edited', 400);
+  if (!message) {
+    throw new AppError("Message not found or access denied", 404);
+  }
+  if (message.isDeleted) {
+    throw new AppError("Cannot edit a deleted message", 400);
+  }
+  if (message.type !== "text") {
+    throw new AppError("Only text messages can be edited", 400);
+  }
 
   const isEncrypted = !!(encryptedContent && nonce);
 
   if (isEncrypted) {
     message.encryptedContent = encryptedContent;
     message.nonce = nonce;
-    message.content = '';
+    message.content = "";
   } else {
     const sanitized = content
       ? String(content).trim().slice(0, MAX_MESSAGE_LENGTH)
-      : '';
-    if (!sanitized) throw new AppError('Message content cannot be empty', 400);
+      : "";
+    if (!sanitized) {
+      throw new AppError("Message content cannot be empty", 400);
+    }
     message.content = sanitized;
-    message.encryptedContent = '';
-    message.nonce = '';
+    message.encryptedContent = "";
+    message.nonce = "";
   }
 
   message.isEdited = true;
@@ -137,61 +175,79 @@ export const editMessage = async ({
   await message.save();
 
   const populated = (await Message.findById(message._id)
-    .populate('sender', 'username fullName avatar')
-    .populate('replyTo')) as IMessage;
+    .populate("sender", "username fullName avatar")
+    .populate("replyTo")) as IMessage;
 
   try {
     const io = getIO();
     const chat = await Chat.findById(message.chat);
     chat?.members.forEach((memberId) => {
-      io.to(memberId.toString()).emit('message:edited', populated);
+      io.to(memberId.toString()).emit("message:edited", populated);
     });
   } catch (socketErr) {
-    logger.warn(`[editMessage] Socket error for message ${messageId}: ${(socketErr as Error).message}`);
+    logger.warn(
+      `[editMessage] Socket error for message ${messageId}: ${(socketErr as Error).message}`,
+    );
   }
 
   return populated;
 };
 
-/** Soft-deletes a message by blanking its content and setting isDeleted; broadcasts to all chat members. */
-export const deleteMessage = async (messageId: string, userId: Types.ObjectId): Promise<IMessage> => {
+
+export const deleteMessage = async (
+  messageId: string,
+  userId: Types.ObjectId,
+): Promise<IMessage> => {
   const message = await Message.findOne({ _id: messageId, sender: userId });
-  if (!message) throw new AppError('Message not found', 404);
+  if (!message) {
+    throw new AppError("Message not found", 404);
+  }
   message.isDeleted = true;
-  message.content = '';
-  message.mediaUrl = '';
-  message.encryptedContent = '';
-  message.nonce = '';
+  message.content = "";
+  message.mediaUrl = "";
+  message.encryptedContent = "";
+  message.nonce = "";
   await message.save();
 
   try {
     const io = getIO();
     const chat = await Chat.findById(message.chat);
     chat?.members.forEach((memberId) => {
-      io.to(memberId.toString()).emit('message:deleted', { messageId: message._id, chatId: message.chat });
+      io.to(memberId.toString()).emit("message:deleted", {
+        messageId: message._id,
+        chatId: message.chat,
+      });
     });
   } catch (socketErr) {
-    logger.warn(`[deleteMessage] Socket error for message ${messageId}: ${(socketErr as Error).message}`);
+    logger.warn(
+      `[deleteMessage] Socket error for message ${messageId}: ${(socketErr as Error).message}`,
+    );
   }
 
   return message;
 };
 
-/**
- * Adds, replaces, or removes a reaction on a message. Adding the same emoji
- * again toggles it off; a different emoji replaces the existing one.
- * Broadcasts the updated reaction array to all chat members.
- */
-export const reactToMessage = async (
-  messageId: string, userId: Types.ObjectId, emoji: string
-): Promise<IMessage> => {
-  if (!emoji || typeof emoji !== 'string' || emoji.length > 10) throw new AppError('Invalid emoji', 400);
-  const message = await Message.findById(messageId);
-  if (!message) throw new AppError('Message not found', 404);
-  const chat = await Chat.findOne({ _id: message.chat, members: userId });
-  if (!chat) throw new AppError('Access denied', 403);
 
-  const existingIdx = message.reactions.findIndex((r) => r.user.toString() === userId.toString());
+export const reactToMessage = async (
+  messageId: string,
+  userId: Types.ObjectId,
+  emoji: string,
+): Promise<IMessage> => {
+  if (!emoji || typeof emoji !== "string" || emoji.length > 10) {
+    throw new AppError("Invalid emoji", 400);
+  }
+  const message = await Message.findById(messageId);
+  if (!message) {
+    throw new AppError("Message not found", 404);
+  }
+  const chat = await Chat.findOne({ _id: message.chat, members: userId });
+  if (!chat) {
+    throw new AppError("Access denied", 403);
+  }
+
+  const existingIdx = message.reactions.findIndex((r) => {
+    return r.user.toString() === userId.toString();
+  });
   if (existingIdx >= 0) {
     if (message.reactions[existingIdx].emoji === emoji) {
       message.reactions.splice(existingIdx, 1);
@@ -206,92 +262,123 @@ export const reactToMessage = async (
   try {
     const io = getIO();
     chat.members.forEach((memberId) => {
-      io.to(memberId.toString()).emit('message:reaction', {
-        messageId: message._id, chatId: message.chat, reactions: message.reactions,
+      io.to(memberId.toString()).emit("message:reaction", {
+        messageId: message._id,
+        chatId: message.chat,
+        reactions: message.reactions,
       });
     });
   } catch (socketErr) {
-    logger.warn(`[reactToMessage] Socket error for message ${messageId}: ${(socketErr as Error).message}`);
+    logger.warn(
+      `[reactToMessage] Socket error for message ${messageId}: ${(socketErr as Error).message}`,
+    );
   }
 
   return message;
 };
 
-/**
- * Marks every message in the chat (not authored by the user) as delivered to
- * that user — the grey double-tick state. Notifies the original senders so
- * their ticks advance from single (sent) to double (delivered).
- */
 
-export const markDelivered = async (chatId: string, userId: Types.ObjectId): Promise<void> => {
+
+export const markDelivered = async (
+  chatId: string,
+  userId: Types.ObjectId,
+): Promise<void> => {
   const chat = await Chat.findOne({ _id: chatId, members: userId });
-  if (!chat) return;
+  if (!chat) {
+    return;
+  }
 
   const result = await Message.updateMany(
     { chat: chatId, sender: { $ne: userId }, deliveredTo: { $ne: userId } },
-    { $addToSet: { deliveredTo: userId } }
+    { $addToSet: { deliveredTo: userId } },
   );
-  if (!result.modifiedCount) return;
+  if (!result.modifiedCount) {
+    return;
+  }
 
   try {
     const io = getIO();
     chat.members.forEach((memberId) => {
       if (memberId.toString() !== userId.toString()) {
-        io.to(memberId.toString()).emit('message:delivered', { chatId, userId: userId.toString() });
+        io.to(memberId.toString()).emit("message:delivered", {
+          chatId,
+          userId: userId.toString(),
+        });
       }
     });
   } catch (socketErr) {
-    logger.warn(`[markDelivered] Socket error for chat ${chatId}: ${(socketErr as Error).message}`);
+    logger.warn(
+      `[markDelivered] Socket error for chat ${chatId}: ${(socketErr as Error).message}`,
+    );
   }
 };
 
-/**
- * Marks all unread messages in the chat as read by the user, resets the user's
- * unread count, and notifies the user's own sessions and other members via socket.
- */
-export const markRead = async (chatId: string, userId: Types.ObjectId): Promise<void> => {
+
+export const markRead = async (
+  chatId: string,
+  userId: Types.ObjectId,
+): Promise<void> => {
   const chat = await Chat.findOne({ _id: chatId, members: userId });
-  if (!chat) throw new AppError('Chat not found or access denied', 403);
+  if (!chat) {
+    throw new AppError("Chat not found or access denied", 403);
+  }
 
   await Message.updateMany(
     { chat: chatId, readBy: { $ne: userId } },
-    { $addToSet: { readBy: userId } }
+    { $addToSet: { readBy: userId } },
   );
 
-  await Chat.findByIdAndUpdate(chatId, { $set: { [`unreadCounts.${userId.toString()}`]: 0 } });
+  await Chat.findByIdAndUpdate(chatId, {
+    $set: { [`unreadCounts.${userId.toString()}`]: 0 },
+  });
 
   try {
     const io = getIO();
-    io.to(userId.toString()).emit('chat:read', { chatId });
+    io.to(userId.toString()).emit("chat:read", { chatId });
     chat.members.forEach((memberId) => {
       if (memberId.toString() !== userId.toString()) {
-        io.to(memberId.toString()).emit('message:read', { chatId, readBy: userId });
+        io.to(memberId.toString()).emit("message:read", {
+          chatId,
+          readBy: userId,
+        });
       }
     });
   } catch (socketErr) {
-    logger.warn(`[markRead] Socket error for chat ${chatId}: ${(socketErr as Error).message}`);
+    logger.warn(
+      `[markRead] Socket error for chat ${chatId}: ${(socketErr as Error).message}`,
+    );
   }
 };
 
-/**
- * Clears messages in a chat. When `forBoth` is true, marks the sender's
- * messages as globally deleted and broadcasts the event. Otherwise, adds
- * the user to each message's `deletedFor` array (visible only to them).
- */
-export const clearChat = async (chatId: string, userId: Types.ObjectId, forBoth: boolean): Promise<void> => {
+
+export const clearChat = async (
+  chatId: string,
+  userId: Types.ObjectId,
+  forBoth: boolean,
+): Promise<void> => {
   const chat = await Chat.findOne({ _id: chatId, members: userId });
-  if (!chat) throw new AppError('Chat not found or access denied', 403);
+  if (!chat) {
+    throw new AppError("Chat not found or access denied", 403);
+  }
 
   if (forBoth) {
     await Message.updateMany(
       { chat: chatId, sender: userId },
-      { isDeleted: true, content: '', mediaUrl: '', encryptedContent: '', nonce: '' }
+      {
+        isDeleted: true,
+        content: "",
+        mediaUrl: "",
+        encryptedContent: "",
+        nonce: "",
+      },
     );
     try {
       const io = getIO();
       chat.members.forEach((memberId) => {
-        io.to(memberId.toString()).emit('chat:cleared', {
-          chatId, forBoth: true, senderId: userId.toString(),
+        io.to(memberId.toString()).emit("chat:cleared", {
+          chatId,
+          forBoth: true,
+          senderId: userId.toString(),
         });
       });
     } catch (socketErr) {
@@ -300,7 +387,7 @@ export const clearChat = async (chatId: string, userId: Types.ObjectId, forBoth:
   } else {
     await Message.updateMany(
       { chat: chatId, deletedFor: { $ne: userId } },
-      { $addToSet: { deletedFor: userId } }
+      { $addToSet: { deletedFor: userId } },
     );
   }
 };
