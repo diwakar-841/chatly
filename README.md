@@ -81,7 +81,7 @@ PROJECT-1/
 ### 1. Clone the repository
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/diwakar-841/Chatly
 cd PROJECT-1
 ```
 
