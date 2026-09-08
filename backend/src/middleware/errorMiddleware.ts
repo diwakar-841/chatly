@@ -36,11 +36,12 @@ export const errorHandler = (
     {
       message: isOperational
         ? String(err.message)
-        : "An unexpected error occurred",
+        : "Something went wrong. Please try again later.",
     };
 
   
-  if (err?.errors && Array.isArray(err.errors)) {
+  
+  if (isOperational && err?.errors && Array.isArray(err.errors)) {
     const validationErrors = err.errors.map((e: any) => {
       return { param: e.param, msg: e.msg };
     });

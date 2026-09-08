@@ -1,6 +1,7 @@
 import { Response, NextFunction } from "express";
 import { AuthRequest } from "../types/index.js";
 import { AppError } from "../utils/errors.js";
+import logger from "../utils/logger.js";
 
 interface GeminiMessage {
   role: "user" | "model";
@@ -24,7 +25,10 @@ export const aiChat = async (
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return next(new AppError("AI service not configured", 500));
+      logger.error("[AI] GEMINI_API_KEY is not configured");
+      return next(
+        new AppError("The AI assistant is currently unavailable. Please try again later.", 503),
+      );
     }
 
     const contents: GeminiMessage[] = [
@@ -42,8 +46,15 @@ export const aiChat = async (
     );
 
     if (!response.ok) {
-      const err = await response.json();
-      return next(new AppError(err?.error?.message || "Gemini API error", 502));
+      const err = await response.json().catch(() => null);
+      logger.error(
+        `[AI] Gemini API request failed (${response.status}): ${
+          err?.error?.message || "no details"
+        }`,
+      );
+      return next(
+        new AppError("The AI assistant is temporarily unavailable. Please try again later.", 502),
+      );
     }
 
     const data = (await response.json()) as {

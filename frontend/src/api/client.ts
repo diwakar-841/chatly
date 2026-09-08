@@ -52,44 +52,30 @@ api.interceptors.response.use(
   }
 );
 
-export function apiError(e: unknown, fallback = "Something went wrong"): string {
+const TECHNICAL_MESSAGE_PATTERN =
+  /timeout|timed out|network error|ECONNABORTED|ECONNREFUSED|ECONNRESET|ENOTFOUND|EHOSTUNREACH|socket|hang up|stack|exception|undefined is not|cannot read propert|is not a function|status code|CORS|failed to fetch|ETIMEDOUT|ERR_|at\s+\S+\s*\(|\.(js|ts):\d+/i;
+
+export function apiError(e: unknown, fallback = "Something went wrong. Please try again later."): string {
   const err = e as AxiosError<{ message?: string; errors?: { msg: string }[] }> | undefined;
 
-  
-  const validationMsg = err?.response?.data?.errors?.[0]?.msg;
-  if (validationMsg) {
+  if (err?.code === "ECONNABORTED" || /timeout/i.test((err as any)?.message || "")) {
+    return "The request timed out. Please check your connection and try again.";
+  }
+  if (!err?.response || /network error/i.test((err as any)?.message || "")) {
+    return "Unable to reach the server. Please check your internet connection.";
+  }
+  if (err.response.status >= 500) {
+    return "Something went wrong on our end. Please try again later.";
+  }
+
+  const validationMsg = err.response.data?.errors?.[0]?.msg;
+  if (validationMsg && typeof validationMsg === "string" && !TECHNICAL_MESSAGE_PATTERN.test(validationMsg)) {
     return validationMsg;
   }
 
-  
-  const serverMsg = err?.response?.data?.message;
-  if (serverMsg) {
-    if (/timeout|timed out/i.test(serverMsg) || err?.code === "ECONNABORTED") {
-      return "The request timed out. Please check your connection and try again.";
-    }
-    if (/network error|ENOTFOUND|ECONNREFUSED|ECONNRESET/i.test(serverMsg)) {
-      return "Unable to reach the server. Please check your internet connection.";
-    }
-    if (err?.response?.status && err.response.status >= 500) {
-      return "Server error. Please try again later.";
-    }
-
-    
-    return String(serverMsg);
-  }
-
-  
-  if ((err as any)?.code === "ECONNABORTED" || /timeout/i.test((err as any)?.message || "")) {
-    return "The request timed out. Please check your connection and try again.";
-  }
-  if (/Network Error/i.test((err as any)?.message || "")) {
-    return "Unable to reach the server. Please check your internet connection.";
-  }
-
-  
-  const raw = (err as any)?.message;
-  if (raw && typeof raw === "string" && raw.length > 0 && raw.length < 120) {
-    return raw;
+  const serverMsg = err.response.data?.message;
+  if (serverMsg && typeof serverMsg === "string" && !TECHNICAL_MESSAGE_PATTERN.test(serverMsg)) {
+    return serverMsg;
   }
 
   return fallback;
