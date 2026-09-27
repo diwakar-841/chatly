@@ -87,8 +87,11 @@ export default (io: Server, socket: AuthenticatedSocket): void => {
   
   socket.on(
     "call:accept",
-    ({ to, answer }: { to: string; answer: RTCSessionDescriptionInitLike }) => {
+    async ({ to, answer }: { to: string; answer: RTCSessionDescriptionInitLike }) => {
       if (!to || !answer) {
+        return;
+      }
+      if (!(await validatePeer(myId, to))) {
         return;
       }
       io.to(to).emit("call:accepted", { from: myId, answer });
@@ -96,16 +99,22 @@ export default (io: Server, socket: AuthenticatedSocket): void => {
   );
 
   
-  socket.on("call:reject", ({ to }: { to: string }) => {
+  socket.on("call:reject", async ({ to }: { to: string }) => {
     if (!to) {
+      return;
+    }
+    if (!(await validatePeer(myId, to))) {
       return;
     }
     io.to(to).emit("call:rejected", { from: myId });
   });
 
   
-  socket.on("call:end", ({ to }: { to: string }) => {
+  socket.on("call:end", async ({ to }: { to: string }) => {
     if (!to) {
+      return;
+    }
+    if (!(await validatePeer(myId, to))) {
       return;
     }
     io.to(to).emit("call:ended", { from: myId });
@@ -114,8 +123,11 @@ export default (io: Server, socket: AuthenticatedSocket): void => {
   
   socket.on(
     "call:ice-candidate",
-    ({ to, candidate }: { to: string; candidate: unknown }) => {
+    async ({ to, candidate }: { to: string; candidate: unknown }) => {
       if (!to || !candidate) {
+        return;
+      }
+      if (!(await validatePeer(myId, to))) {
         return;
       }
       io.to(to).emit("call:ice-candidate", { from: myId, candidate });

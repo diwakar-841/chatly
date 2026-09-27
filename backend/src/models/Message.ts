@@ -31,6 +31,8 @@ const messageSchema = new Schema<IMessage>(
     encryptedContent: { type: String, default: "" },
     
     nonce: { type: String, default: "" },
+    
+    expiresAt: { type: Date, default: null },
   },
   { timestamps: true },
 );
@@ -38,5 +40,7 @@ const messageSchema = new Schema<IMessage>(
 messageSchema.index({ chat: 1, createdAt: -1 });
 messageSchema.index({ sender: 1 });
 messageSchema.index({ chat: 1, isDeleted: 1, createdAt: -1 });
+
+messageSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export default mongoose.model<IMessage>("Message", messageSchema);

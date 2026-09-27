@@ -9,7 +9,11 @@ import {
 } from "../controllers/messageController.js";
 import { protect } from "../middleware/authMiddleware.js";
 import { mediaUpload } from "../middleware/uploadMiddleware.js";
-import { sendMessageValidation } from "../utils/validators.js";
+import {
+  sendMessageValidation,
+  editMessageValidation,
+  mongoIdParam,
+} from "../utils/validators.js";
 import validate from "../middleware/validateMiddleware.js";
 
 const router = Router();
@@ -23,12 +27,42 @@ router.post(
   sendMessage,
 );
 
-router.put("/read/:chatId", protect, markRead);
+router.put(
+  "/read/:chatId",
+  protect,
+  mongoIdParam("chatId"),
+  validate,
+  markRead,
+);
 
-router.put("/:messageId", protect, editMessage);
+router.put(
+  "/:messageId",
+  protect,
+  [mongoIdParam("messageId"), ...editMessageValidation],
+  validate,
+  editMessage,
+);
 
-router.delete("/chat/:chatId", protect, clearChat);
-router.delete("/:messageId", protect, deleteMessage);
-router.post("/:messageId/react", protect, reactToMessage);
+router.delete(
+  "/chat/:chatId",
+  protect,
+  mongoIdParam("chatId"),
+  validate,
+  clearChat,
+);
+router.delete(
+  "/:messageId",
+  protect,
+  mongoIdParam("messageId"),
+  validate,
+  deleteMessage,
+);
+router.post(
+  "/:messageId/react",
+  protect,
+  mongoIdParam("messageId"),
+  validate,
+  reactToMessage,
+);
 
 export default router;

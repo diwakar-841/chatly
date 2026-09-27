@@ -19,7 +19,7 @@ const userSchema = new Schema<IUser>(
       lowercase: true,
       trim: true,
     },
-    password: { type: String, required: true, minlength: 6, select: false },
+    password: { type: String, required: true, minlength: 8, select: false },
     avatar: { type: String, default: "" },
     bio: { type: String, maxlength: 200, default: "" },
     fullName: { type: String, trim: true, default: "" },

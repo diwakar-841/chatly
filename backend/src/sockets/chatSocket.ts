@@ -10,8 +10,26 @@ interface AuthenticatedSocket extends Socket {
 
 export default (io: Server, socket: AuthenticatedSocket): void => {
   
-  socket.on("chat:join", (chatId: string) => {
-    socket.join(chatId);
+  socket.on("chat:join", async (chatId: string) => {
+    try {
+      if (!chatId || typeof chatId !== "string") {
+        return;
+      }
+      const chat = await Chat.findOne({
+        _id: chatId,
+        members: socket.user._id,
+      }).select("_id");
+      if (!chat) {
+        return;
+      }
+      socket.join(chatId);
+    } catch (err) {
+      logger.error(
+        `chat:join error for user ${socket.user._id}: ${
+          (err as Error).message
+        }`,
+      );
+    }
   });
 
   

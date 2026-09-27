@@ -30,8 +30,11 @@ const SocketContext = createContext<Ctx>({
 });
 
 export function SocketProvider({ children }: { children: ReactNode }) {
-  const token = useAuth(s => {
-    return s.accessToken;
+  
+  
+  
+  const userId = useAuth(s => {
+    return s.user?._id ?? null;
   });
 
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -61,14 +64,24 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!token) {
+    if (!userId) {
       disconnectSocket();
       setSocket(null);
       setOnlineUsers(new Set());
       return;
     }
 
-    const s = connectSocket(token);
+    
+    
+    const currentToken = useAuth.getState().accessToken;
+    if (!currentToken) {
+      disconnectSocket();
+      setSocket(null);
+      setOnlineUsers(new Set());
+      return;
+    }
+
+    const s = connectSocket(currentToken);
     setSocket(s);
 
     const onOnlineContacts = ({ userIds }: { userIds: string[] }) => {
@@ -151,7 +164,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       s.off("message:new", onIncomingMessage);
       s.off("chat:status_changed", onStatusChanged);
     };
-  }, [token]);
+  }, [userId]);
 
   return (
     <SocketContext.Provider

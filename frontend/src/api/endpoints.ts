@@ -231,6 +231,12 @@ export const chatApi = {
       return r.data;
     });
   },
+  
+  setDisappearing: (chatId: string, seconds: number) => {
+    return api.patch<Chat>(`/chats/${chatId}/disappearing`, { seconds }).then(r => {
+      return r.data;
+    });
+  },
 };
 
 export const messageApi = {

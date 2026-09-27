@@ -14,8 +14,11 @@ import {
 } from "../types/index.js";
 import User from "../models/User.js";
 import Request from "../models/Request.js";
-
-const MAX_MESSAGE_LENGTH = 2000;
+import {
+  MAX_MESSAGE_LENGTH,
+  MAX_ENCRYPTED_CONTENT_LENGTH,
+  MAX_NONCE_LENGTH,
+} from "../utils/constants.js";
 
 export const sendMessage = async ({
   chatId,
@@ -29,6 +32,14 @@ export const sendMessage = async ({
   nonce,
 }: SendMessageInput): Promise<IMessage> => {
   const isEncrypted = !!(encryptedContent && nonce);
+
+  if (
+    isEncrypted &&
+    (encryptedContent!.length > MAX_ENCRYPTED_CONTENT_LENGTH ||
+      nonce!.length > MAX_NONCE_LENGTH)
+  ) {
+    throw new AppError("Encrypted payload too large", 400);
+  }
 
   const sanitizedContent =
     !isEncrypted && content
@@ -74,6 +85,11 @@ export const sendMessage = async ({
     }
   }
 
+  const expiresAt =
+    chat.disappearingMessages && chat.disappearingMessages > 0
+      ? new Date(Date.now() + chat.disappearingMessages * 1000)
+      : null;
+
   const message = await Message.create({
     chat: chatId,
     sender: senderId,
@@ -85,6 +101,7 @@ export const sendMessage = async ({
     deliveredTo: [senderId],
     encryptedContent: isEncrypted ? encryptedContent : "",
     nonce: isEncrypted ? nonce : "",
+    expiresAt,
   });
 
   await Chat.findByIdAndUpdate(chatId, {
@@ -151,6 +168,14 @@ export const editMessage = async ({
   }
 
   const isEncrypted = !!(encryptedContent && nonce);
+
+  if (
+    isEncrypted &&
+    (encryptedContent!.length > MAX_ENCRYPTED_CONTENT_LENGTH ||
+      nonce!.length > MAX_NONCE_LENGTH)
+  ) {
+    throw new AppError("Encrypted payload too large", 400);
+  }
 
   if (isEncrypted) {
     message.encryptedContent = encryptedContent;

@@ -1,6 +1,5 @@
 import { Types } from "mongoose";
 import BlockedUser from "../models/BlockedUser.js";
-import Request from "../models/Request.js";
 import Chat from "../models/Chat.js";
 import { AppError } from "../utils/errors.js";
 import { IBlockedUser } from "../types/index.js";
@@ -66,22 +65,7 @@ export const unblockUser = async (
     throw new AppError("Block not found", 404);
   }
 
-  const existingRequest = await Request.findOne({
-    $or: [
-      { sender: blockerId, recipient: blockedId },
-      { sender: blockedId, recipient: blockerId },
-    ],
-  });
-  if (!existingRequest) {
-    await Request.create({
-      sender: blockerId,
-      recipient: blockedId,
-      status: "accepted",
-    });
-  } else if (existingRequest.status !== "accepted") {
-    existingRequest.status = "accepted";
-    await existingRequest.save();
-  }
+  
 
   try {
     const io = getIO();

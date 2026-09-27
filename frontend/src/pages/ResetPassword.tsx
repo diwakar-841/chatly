@@ -20,6 +20,12 @@ export default function ResetPasswordPage() {
     if (pw.length < 8) {
       return toast.error("Min 8 characters");
     }
+    if (!/[A-Z]/.test(pw)) {
+      return toast.error("Password must contain at least one uppercase letter");
+    }
+    if (!/[0-9]/.test(pw)) {
+      return toast.error("Password must contain at least one number");
+    }
     if (otp.length !== 6) {
       return toast.error("Enter the 6-digit code");
     }
@@ -40,7 +46,7 @@ export default function ResetPasswordPage() {
       <div className="w-full max-w-md card p-6">
         <h1 className="text-xl font-bold mb-2">Set new password</h1>
         <p className="text-muted text-sm mb-6">
-          Enter the code we emailed you and choose a strong password (min 8 characters).
+          Enter the code we emailed you and choose a strong password (min 8 characters, with an uppercase letter and a number).
         </p>
         <form onSubmit={submit} className="space-y-4">
           {!prefilledEmail && (

@@ -15,14 +15,19 @@ export const getProfile = async (
   canView: boolean;
   canChat: boolean;
 }> => {
+  const isSelfRequest = targetUserId.toString() === requesterId.toString();
+
+  
   const user = await User.findById(targetUserId).select(
-    "-password -resetPasswordOtp -resetPasswordOtpExpire -verifyEmailOtp -verifyEmailOtpExpire",
+    isSelfRequest
+      ? "-password -resetPasswordOtp -resetPasswordOtpExpire -verifyEmailOtp -verifyEmailOtpExpire"
+      : "-password -email -resetPasswordOtp -resetPasswordOtpExpire -verifyEmailOtp -verifyEmailOtpExpire",
   );
   if (!user) {
     throw new AppError("User not found", 404);
   }
 
-  if (targetUserId.toString() === requesterId.toString()) {
+  if (isSelfRequest) {
     return { user, isSelf: true, canView: true, canChat: true };
   }
 

@@ -8,6 +8,32 @@ interface GeminiMessage {
   parts: { text: string }[];
 }
 
+const MAX_AI_MESSAGE_LENGTH = 4000;
+const MAX_AI_HISTORY_TURNS = 20;
+
+function sanitizeHistory(history: unknown): GeminiMessage[] {
+  if (!Array.isArray(history)) {
+    return [];
+  }
+  return history
+    .filter((entry): entry is GeminiMessage => {
+      return (
+        !!entry &&
+        (entry.role === "user" || entry.role === "model") &&
+        Array.isArray(entry.parts) &&
+        entry.parts.length > 0 &&
+        typeof entry.parts[0]?.text === "string"
+      );
+    })
+    .slice(-MAX_AI_HISTORY_TURNS)
+    .map((entry) => {
+      return {
+        role: entry.role,
+        parts: [{ text: entry.parts[0].text.slice(0, MAX_AI_MESSAGE_LENGTH) }],
+      };
+    });
+}
+
 export const aiChat = async (
   req: AuthRequest,
   res: Response,
@@ -22,6 +48,14 @@ export const aiChat = async (
     if (!message?.trim()) {
       return next(new AppError("Message is required", 400));
     }
+    if (message.length > MAX_AI_MESSAGE_LENGTH) {
+      return next(
+        new AppError(
+          `Message is too long (max ${MAX_AI_MESSAGE_LENGTH} characters).`,
+          400,
+        ),
+      );
+    }
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -32,8 +66,8 @@ export const aiChat = async (
     }
 
     const contents: GeminiMessage[] = [
-      ...(history || []),
-      { role: "user", parts: [{ text: message }] },
+      ...sanitizeHistory(history),
+      { role: "user", parts: [{ text: message.trim() }] },
     ];
 
     const response = await fetch(

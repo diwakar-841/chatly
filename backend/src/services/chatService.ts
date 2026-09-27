@@ -19,6 +19,7 @@ import {
 import Notification from "../models/Notification.js";
 import { getIO } from "../config/socket.js";
 import escapeRegex from "../utils/escapeRegex.js";
+import logger from "../utils/logger.js";
 
 export const getOrCreateDM = async (
   userId1: Types.ObjectId,
@@ -326,7 +327,64 @@ export const removeMember = async (
   chat.admins = chat.admins.filter((a) => {
     return a.toString() !== memberId;
   });
+
+  
+  if (chat.members.length === 0) {
+    await chat.deleteOne();
+    return { _id: chat._id, disbanded: true } as unknown as IChat;
+  }
+  if (chat.admins.length === 0) {
+    chat.admins = [chat.members[0]];
+  }
+
   await chat.save();
+  return Chat.findById(chatId).populate(
+    "members admins",
+    "username fullName avatar isOnline lastSeen",
+  ) as Promise<IChat>;
+};
+
+export const setDisappearingMessages = async (
+  chatId: string,
+  userId: Types.ObjectId,
+  seconds: number,
+): Promise<IChat> => {
+  const chat = await Chat.findOne({ _id: chatId, members: userId });
+  if (!chat) {
+    throw new AppError("Chat not found or access denied", 404);
+  }
+  if (
+    chat.isGroup &&
+    !chat.admins
+      .map((a) => {
+        return a.toString();
+      })
+      .includes(userId.toString())
+  ) {
+    throw new AppError(
+      "Only admins can change disappearing messages settings",
+      403,
+    );
+  }
+
+  chat.disappearingMessages = seconds;
+  await chat.save();
+
+  try {
+    const io = getIO();
+    chat.members.forEach((memberId) => {
+      io.to(memberId.toString()).emit("chat:disappearing_changed", {
+        chatId,
+        disappearingMessages: seconds,
+        by: userId.toString(),
+      });
+    });
+  } catch (socketErr) {
+    logger.warn(
+      `[setDisappearingMessages] Socket error for chat ${chatId}: ${(socketErr as Error).message}`,
+    );
+  }
+
   return Chat.findById(chatId).populate(
     "members admins",
     "username fullName avatar isOnline lastSeen",

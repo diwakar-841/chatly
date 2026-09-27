@@ -16,9 +16,24 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction,
 ): void => {
-  const statusCode = (err as AppError).statusCode ?? err?.statusCode ?? 500;
-  const isOperational =
+  let statusCode = (err as AppError).statusCode ?? err?.statusCode ?? 500;
+  let isOperational =
     (err as AppError).isOperational ?? err?.isOperational ?? false;
+
+  
+  if (err?.code === 11000 && !isOperational) {
+    const field = err?.keyValue ? Object.keys(err.keyValue)[0] : "field";
+    err.message = `That ${field} is already in use.`;
+    statusCode = 409;
+    isOperational = true;
+  }
+
+  
+  if (err?.name === "CastError" && !isOperational) {
+    err.message = "Invalid identifier supplied.";
+    statusCode = 400;
+    isOperational = true;
+  }
 
   
   if (statusCode >= 500) {

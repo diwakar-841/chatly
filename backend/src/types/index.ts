@@ -78,6 +78,8 @@ export interface IMessage extends Document {
   encryptedContent: string;
   
   nonce: string;
+  
+  expiresAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -103,6 +105,9 @@ export interface IChat extends Document {
   pendingInvites: Types.ObjectId[];
 
   unreadCounts?: Map<string, number>;
+
+  
+  disappearingMessages: number;
 
   createdAt: Date;
   updatedAt: Date;

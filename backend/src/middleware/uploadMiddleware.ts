@@ -14,7 +14,31 @@ const IMAGE_MIME_TYPES = [
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 const MAX_MEDIA_SIZE = 25 * 1024 * 1024;
 
+// Chat media attachments: allow common, safe media/document types.
+// Deliberately excludes HTML/SVG/script-bearing and executable types, which
+// could otherwise be uploaded and later served back to a victim's browser
+// (stored content risk) or run on their machine.
+const MEDIA_MIME_TYPES = [
+  ...IMAGE_MIME_TYPES,
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/wav",
+  "audio/ogg",
+  "audio/webm",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/zip",
+  "text/plain",
+];
+
 const INVALID_IMAGE_TYPE = "invalid_image_type";
+const INVALID_MEDIA_TYPE = "invalid_media_type";
 
 const memoryStorage = multer.memoryStorage();
 
@@ -31,6 +55,9 @@ function toUploadAppError(err: unknown, maxSize: number): AppError {
   }
   if (err instanceof Error && err.message === INVALID_IMAGE_TYPE) {
     return new AppError("Only image files are allowed (jpg, png, gif, webp).", 400);
+  }
+  if (err instanceof Error && err.message === INVALID_MEDIA_TYPE) {
+    return new AppError("This file type is not supported.", 400);
   }
   logger.error(`[Upload] Unexpected upload error: ${(err as Error)?.message ?? err}`);
   return new AppError("The file could not be uploaded. Please try again.", 400);
@@ -57,10 +84,14 @@ const mediaMulter = multer({
   limits: { fileSize: MAX_MEDIA_SIZE },
   fileFilter: (
     _req: Request,
-    _file: Express.Multer.File,
+    file: Express.Multer.File,
     cb: FileFilterCallback,
   ) => {
-    cb(null, true);
+    if (MEDIA_MIME_TYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(INVALID_MEDIA_TYPE));
+    }
   },
 });
 

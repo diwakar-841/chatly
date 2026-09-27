@@ -209,6 +209,24 @@ export const togglePinMessage = async (
   }
 };
 
+export const setDisappearingMessages = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const { seconds } = req.body as { seconds: number };
+    const chat = await chatService.setDisappearingMessages(
+      req.params.chatId,
+      (req as AuthRequest).user._id,
+      seconds,
+    );
+    res.json(chat);
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const getMessages = async (
   req: Request,
   res: Response,

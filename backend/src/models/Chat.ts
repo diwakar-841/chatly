@@ -17,6 +17,8 @@ const chatSchema = new Schema<IChat>(
     pendingInvites: [{ type: Schema.Types.ObjectId, ref: "User", default: [] }],
     hiddenBy: [{ type: Schema.Types.ObjectId, ref: "User", default: [] }],
     unreadCounts: { type: Map, of: Number, default: {} },
+    
+    disappearingMessages: { type: Number, default: 0 },
   },
   { timestamps: true },
 );

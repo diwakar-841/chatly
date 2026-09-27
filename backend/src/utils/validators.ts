@@ -1,4 +1,5 @@
 import { body, query, param, ValidationChain } from "express-validator";
+import { DISAPPEARING_OPTIONS } from "./constants.js";
 
 export const registerValidation: ValidationChain[] = [
   body("username")
@@ -66,6 +67,46 @@ export const sendMessageValidation: ValidationChain[] = [
     .isIn(["text", "image", "file"])
     .withMessage("Invalid message type"),
   body("replyTo").optional().isMongoId().withMessage("Invalid replyTo id"),
+  body("encryptedContent")
+    .optional()
+    .isString()
+    .isLength({ max: 4000 })
+    .withMessage("Encrypted payload too large"),
+  body("nonce")
+    .optional()
+    .isString()
+    .isLength({ max: 64 })
+    .withMessage("Invalid nonce"),
+];
+
+export const editMessageValidation: ValidationChain[] = [
+  body("content")
+    .optional()
+    .isString()
+    .isLength({ max: 2000 })
+    .withMessage("Message too long"),
+  body("encryptedContent")
+    .optional()
+    .isString()
+    .isLength({ max: 4000 })
+    .withMessage("Encrypted payload too large"),
+  body("nonce")
+    .optional()
+    .isString()
+    .isLength({ max: 64 })
+    .withMessage("Invalid nonce"),
+];
+
+export const disappearingMessagesValidation: ValidationChain[] = [
+  body("seconds")
+    .custom((value) => {
+      return (
+        typeof value === "number" &&
+        Number.isInteger(value) &&
+        (DISAPPEARING_OPTIONS as readonly number[]).includes(value)
+      );
+    })
+    .withMessage("Invalid disappearing messages duration"),
 ];
 
 export const createGroupValidation: ValidationChain[] = [

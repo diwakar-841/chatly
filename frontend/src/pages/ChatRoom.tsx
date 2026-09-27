@@ -18,6 +18,7 @@ import {
   Phone,
   Video,
   Pencil,
+  Timer,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { chatApi, messageApi, blockApi, requestApi, profileApi, authApi } from "@/api/endpoints";
@@ -40,6 +41,13 @@ import {
 } from "@/utils/encryption";
 
 const EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+
+const DISAPPEARING_OPTIONS: { label: string; value: number }[] = [
+  { label: "Off", value: 0 },
+  { label: "24 hours", value: 86400 },
+  { label: "7 days", value: 604800 },
+  { label: "90 days", value: 7776000 },
+];
 
 function decodeHtmlEntities(str: string): string {
   return str
@@ -86,6 +94,28 @@ export default function ChatRoomPage() {
 
   const [chat, setChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+
+  
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setMessages(prev => {
+        const hasExpired = prev.some(m => {
+          return m.expiresAt && new Date(m.expiresAt).getTime() <= now;
+        });
+        if (!hasExpired) {
+          return prev;
+        }
+        return prev.filter(m => {
+          return !m.expiresAt || new Date(m.expiresAt).getTime() > now;
+        });
+      });
+    }, 15000);
+    return () => {
+      return clearInterval(interval);
+    };
+  }, []);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -448,12 +478,37 @@ export default function ChatRoomPage() {
         } else {
           setBlockedByThem(false);
         }
-        setIsFriend(true);
+        
+        
+        if (other) {
+          profileApi
+            .requestStatus(other._id)
+            .then(r => {
+              return setIsFriend(r.status === "accepted");
+            })
+            .catch(() => {});
+        }
       } else if (status === "unfriended") {
         setIsFriend(false);
         setTypingUser(null);
         removeOnlineUser(by);
       }
+    };
+
+    
+    const onDisappearingChanged = ({
+      chatId: cid,
+      disappearingMessages,
+    }: {
+      chatId: string;
+      disappearingMessages: number;
+    }) => {
+      if (cid !== chatId) {
+        return;
+      }
+      setChat(prev => {
+        return prev ? { ...prev, disappearingMessages } : prev;
+      });
     };
 
     socket.on("message:new", onNew);
@@ -464,6 +519,7 @@ export default function ChatRoomPage() {
     socket.on("chat:pinned", onPinned);
     socket.on("chat:cleared", onCleared);
     socket.on("chat:status_changed", onStatusChanged);
+    socket.on("chat:disappearing_changed", onDisappearingChanged);
     socket.on("message:read", onRead);
     socket.on("message:delivered", onDelivered);
 
@@ -477,6 +533,7 @@ export default function ChatRoomPage() {
       socket.off("chat:pinned", onPinned);
       socket.off("chat:cleared", onCleared);
       socket.off("chat:status_changed", onStatusChanged);
+      socket.off("chat:disappearing_changed", onDisappearingChanged);
       socket.off("message:read", onRead);
       socket.off("message:delivered", onDelivered);
     };
@@ -761,6 +818,33 @@ export default function ChatRoomPage() {
   };
 
   
+  const changeDisappearing = async (seconds: number) => {
+    if (!chatId) {
+      return;
+    }
+    setMenuLoading("disappearing");
+    try {
+      const updated = await chatApi.setDisappearing(chatId, seconds);
+      setChat(prev => {
+        return prev ? { ...prev, disappearingMessages: updated.disappearingMessages } : prev;
+      });
+      toast.success(
+        seconds === 0
+          ? "Disappearing messages turned off"
+          : `New messages will disappear after ${
+              DISAPPEARING_OPTIONS.find(o => {
+                return o.value === seconds;
+              })?.label
+            }`
+      );
+    } catch (e) {
+      toast.error(apiError(e));
+    } finally {
+      setMenuLoading(null);
+    }
+  };
+
+  
   const unfriend = async () => {
     if (!other) {
       return;
@@ -968,6 +1052,16 @@ export default function ChatRoomPage() {
           )}
         </div>
 
+        {!!chat.disappearingMessages && (
+          <div
+            className="flex items-center gap-1 shrink-0 text-xs px-2"
+            style={{ color: "#8696a0" }}
+            title="Disappearing messages are on for this chat"
+          >
+            <Timer className="w-3.5 h-3.5" />
+          </div>
+        )}
+
         <div className="flex items-center gap-1 shrink-0">
           {!chat.isGroup && !isBlocked && (isFriend || other?.isPrivate === false) && (
             <>
@@ -1031,6 +1125,35 @@ export default function ChatRoomPage() {
                     >
                       <Users className="w-4 h-4" /> Group info
                     </button>
+                    <label
+                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm"
+                      style={{ color: isAdmin ? "#e9edef" : "#8696a0" }}
+                      title={
+                        isAdmin
+                          ? "Automatically delete new messages after a set time"
+                          : "Only group admins can change this"
+                      }
+                    >
+                      <Timer className="w-4 h-4 shrink-0" />
+                      <span className="shrink-0">Disappearing</span>
+                      <select
+                        value={chat.disappearingMessages ?? 0}
+                        disabled={!isAdmin || menuLoading === "disappearing"}
+                        onChange={e => {
+                          return changeDisappearing(Number(e.target.value));
+                        }}
+                        className="ml-auto bg-transparent text-xs outline-none"
+                        style={{ color: "inherit" }}
+                      >
+                        {DISAPPEARING_OPTIONS.map(o => {
+                          return (
+                            <option key={o.value} value={o.value} style={{ color: "#111" }}>
+                              {o.label}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </label>
                     <button
                       onClick={clearForMe}
                       disabled={menuLoading === "clear-me"}
@@ -1072,6 +1195,31 @@ export default function ChatRoomPage() {
                   </>
                 ) : (
                   <>
+                    <label
+                      className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm"
+                      style={{ color: "#e9edef" }}
+                      title="Automatically delete new messages after a set time"
+                    >
+                      <Timer className="w-4 h-4 shrink-0" />
+                      <span className="shrink-0">Disappearing</span>
+                      <select
+                        value={chat.disappearingMessages ?? 0}
+                        disabled={menuLoading === "disappearing"}
+                        onChange={e => {
+                          return changeDisappearing(Number(e.target.value));
+                        }}
+                        className="ml-auto bg-transparent text-xs outline-none"
+                        style={{ color: "inherit" }}
+                      >
+                        {DISAPPEARING_OPTIONS.map(o => {
+                          return (
+                            <option key={o.value} value={o.value} style={{ color: "#111" }}>
+                              {o.label}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </label>
                     <button
                       onClick={clearForMe}
                       disabled={menuLoading === "clear-me"}

@@ -48,6 +48,8 @@ export interface Message {
   encryptedContent?: string;
   
   nonce?: string;
+  
+  expiresAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -70,6 +72,8 @@ export interface Chat {
   > | null;
   pinnedMessages?: string[];
   unreadCount?: number;
+  
+  disappearingMessages?: number;
   updatedAt: string;
   createdAt: string;
 }
