@@ -25,6 +25,10 @@ export const getOrCreateDM = async (
   userId1: Types.ObjectId,
   userId2: string,
 ): Promise<IChat> => {
+  if (userId1.toString() === userId2.toString()) {
+    throw new AppError("You cannot start a chat with yourself", 400);
+  }
+
   const isBlocked = await BlockedUser.findOne({
     $or: [
       { blocker: userId1, blocked: userId2 },
@@ -58,7 +62,7 @@ export const getOrCreateDM = async (
   let chat = await Chat.findOne({
     isGroup: false,
     members: { $all: [userId1, userId2], $size: 2 },
-  }).populate("members", "username fullName avatar isOnline lastSeen");
+  }).populate("members", "username fullName avatar isOnline lastSeen isPrivate");
 
   if (chat) {
     const hiddenIdx = (chat.hiddenBy || [])
@@ -658,6 +662,9 @@ export const searchGroups = async (
         return i.toString();
       })
       .includes(userId.toString());
+    // Only expose the derived flags, never the raw id lists of the group.
+    delete obj.members;
+    delete obj.admins;
     delete obj.joinRequests;
     delete obj.pendingInvites;
     return obj;
@@ -681,6 +688,15 @@ export const togglePinMessage = async (
       return p.toString();
     })
     .includes(messageId);
+
+  // Only messages of this very chat can be pinned. Otherwise a member could pin
+  // an arbitrary message id and read it through the populated pinnedMessages.
+  if (!isPinned) {
+    const belongsToChat = await Message.exists({ _id: messageId, chat: chatId });
+    if (!belongsToChat) {
+      throw new AppError("Message not found in this chat", 404);
+    }
+  }
 
   if (chat.isGroup) {
     if (

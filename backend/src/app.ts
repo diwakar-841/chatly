@@ -21,6 +21,7 @@ import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
 import { generalLimiter } from "./middleware/rateLimitMiddleware.js";
 import swaggerSpec from "./config/swagger.js";
 import logger from "./utils/logger.js";
+import { AppError } from "./utils/errors.js";
 
 const app = express();
 
@@ -41,7 +42,7 @@ app.use(
       if (!origin || allowed.includes(origin)) {
         return cb(null, true);
       }
-      cb(new Error("Not allowed by CORS"));
+      cb(new AppError("Not allowed by CORS", 403));
     },
     credentials: true,
   }),

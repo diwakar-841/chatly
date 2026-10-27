@@ -2,7 +2,7 @@ import "dotenv/config";
 import http from "http";
 import app from "./app.js";
 import connectDB, { disconnectDB } from "./config/db.js";
-import { initSocket } from "./config/socket.js";
+import { initSocket, getIO } from "./config/socket.js";
 import logger from "./utils/logger.js";
 
 const PORT = process.env.PORT ?? "5000";
@@ -12,6 +12,11 @@ const server = http.createServer(app);
 initSocket(server);
 
 const start = async (): Promise<void> => {
+  // Fail fast: without a secret every login/register would crash at runtime.
+  if (!process.env.JWT_SECRET) {
+    logger.error("JWT_SECRET is not set — check your .env file");
+    process.exit(1);
+  }
   await connectDB();
   server.listen(PORT, () => {
     logger.info(
@@ -22,31 +27,52 @@ const start = async (): Promise<void> => {
 
 void start();
 
-const shutdown = async (signal: string): Promise<void> => {
-  logger.info(`${signal} received — shutting down gracefully`);
-  server.close(async () => {
-    await disconnectDB();
-    logger.info("Server closed");
-    process.exit(0);
-  });
+let shuttingDown = false;
+
+const shutdown = (reason: string, exitCode = 0): void => {
+  if (shuttingDown) {
+    return;
+  }
+  shuttingDown = true;
+  logger.info(`${reason} — shutting down gracefully`);
+
+  // Hard stop if connections refuse to close in time.
   setTimeout(() => {
     logger.error("Forced shutdown after timeout");
     process.exit(1);
-  }, 10_000);
+  }, 10_000).unref();
+
+  const finish = async (): Promise<void> => {
+    await disconnectDB();
+    logger.info("Server closed");
+    process.exit(exitCode);
+  };
+
+  // io.close() disconnects every websocket client AND closes the HTTP server.
+  // Calling server.close() alone waits forever for open websocket connections.
+  try {
+    getIO().close(() => {
+      void finish();
+    });
+  } catch {
+    server.close(() => {
+      void finish();
+    });
+  }
 };
 
 process.on("SIGTERM", () => {
-  return void shutdown("SIGTERM");
+  return shutdown("SIGTERM");
 });
 process.on("SIGINT", () => {
-  return void shutdown("SIGINT");
+  return shutdown("SIGINT");
 });
 
 process.on("unhandledRejection", (err: unknown) => {
-  logger.error(`Unhandled Rejection: ${(err as Error).message}`);
-  server.close(() => {
-    return process.exit(1);
-  });
+  logger.error(
+    `Unhandled Rejection: ${err instanceof Error ? err.message : String(err)}`,
+  );
+  shutdown("unhandledRejection", 1);
 });
 
 process.on("uncaughtException", (err: Error) => {

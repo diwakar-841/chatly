@@ -1,9 +1,15 @@
 import rateLimit from "express-rate-limit";
 
+// The automated test-suite fires far more requests than a real user would.
+const skipInTests = (): boolean => {
+  return process.env.NODE_ENV === "test";
+};
+
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
   message: { message: "Too many requests, please try again later." },
+  skip: skipInTests,
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -12,6 +18,7 @@ export const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
   message: { message: "Too many requests, please try again later." },
+  skip: skipInTests,
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -25,6 +32,7 @@ export const aiLimiter = rateLimit({
   message: {
     message: "You're sending messages too fast. Please slow down.",
   },
+  skip: skipInTests,
   standardHeaders: true,
   legacyHeaders: false,
 });

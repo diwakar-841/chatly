@@ -22,7 +22,7 @@ export const protect = async (
     };
     const user = await User.findById(decoded.id).select("-password");
     if (!user) {
-      return next(new AppError("User not found", 404));
+      return next(new AppError("Not authorized, user no longer exists", 401));
     }
     (req as AuthRequest).user = user;
     next();

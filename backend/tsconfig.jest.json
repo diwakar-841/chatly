@@ -1,0 +1,16 @@
+{
+  // Used by ts-jest only. Jest runs CommonJS, while the real build uses NodeNext (ESM).
+  // isolatedModules = transpile-only: fast and light on memory (important on Termux).
+  // Type-checking is still done by `npm run typecheck`.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node10",
+    "isolatedModules": true,
+    "sourceMap": true,
+    "rootDir": "./src",
+    "types": ["node", "jest"]
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

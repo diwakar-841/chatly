@@ -26,6 +26,20 @@ const validatePeer = async (
   meId: string,
   otherId: string,
 ): Promise<boolean> => {
+  // These helpers run inside async socket handlers: a DB error here would be an
+  // unhandled rejection (which stops the server), so treat it as "not allowed".
+  try {
+    return await checkPeer(meId, otherId);
+  } catch (err) {
+    logger.warn(`call peer validation failed: ${(err as Error).message}`);
+    return false;
+  }
+};
+
+const checkPeer = async (meId: string, otherId: string): Promise<boolean> => {
+  if (meId === otherId) {
+    return false;
+  }
   const [chat, block] = await Promise.all([
     Chat.findOne({ isGroup: false, members: { $all: [meId, otherId] } }).select(
       "_id",

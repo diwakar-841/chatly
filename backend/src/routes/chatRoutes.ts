@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { body } from "express-validator";
 import {
   getDM,
@@ -25,12 +25,48 @@ import { protect } from "../middleware/authMiddleware.js";
 import { imageUpload } from "../middleware/uploadMiddleware.js";
 import {
   createGroupValidation,
+  updateGroupValidation,
   disappearingMessagesValidation,
   mongoIdParam,
 } from "../utils/validators.js";
 import validate from "../middleware/validateMiddleware.js";
 
 const router = Router();
+
+/**
+ * `members` arrives in several shapes on a multipart request:
+ *  - repeated field, 2+ users  -> array
+ *  - repeated field, 1 user    -> plain string (multer only builds an array for 2+)
+ *  - JSON string               -> '["id1","id2"]'
+ * Normalise all of them to string[] before validation runs.
+ */
+const normalizeMembers = (
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): void => {
+  const raw = (req.body as { members?: unknown } | undefined)?.members;
+  if (raw === undefined || Array.isArray(raw)) {
+    return next();
+  }
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (trimmed.startsWith("[")) {
+      try {
+        const parsed: unknown = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          (req.body as { members: unknown }).members = parsed;
+          return next();
+        }
+      } catch {
+        // fall through: leave the value as-is so validation reports it
+      }
+      return next();
+    }
+    (req.body as { members: unknown }).members = trimmed ? [trimmed] : [];
+  }
+  next();
+};
 
 router.get("/", protect, getUserChats);
 router.get("/search", protect, searchGroups);
@@ -40,6 +76,7 @@ router.post(
   "/group",
   protect,
   imageUpload.single("file"),
+  normalizeMembers,
   createGroupValidation,
   validate,
   createGroup,
@@ -58,6 +95,8 @@ router.put(
   mongoIdParam("chatId"),
   validate,
   imageUpload.single("file"),
+  updateGroupValidation,
+  validate,
   updateGroup,
 );
 router.post(

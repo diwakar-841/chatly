@@ -4,11 +4,12 @@
   "type": "module",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
     "typecheck": "tsc --noEmit",
-    "test": "jest --runInBand --detectOpenHandles"
+    "test": "jest --runInBand --detectOpenHandles",
+    "test:watch": "jest --runInBand --watch"
   },
   "dependencies": {
     "@emailjs/nodejs": "^5.0.2",
@@ -56,12 +57,5 @@
     "supertest": "^7.2.2",
     "tsx": "^4.7.0",
     "typescript": "^5.9.3"
-  },
-  "jest": {
-    "testEnvironment": "node",
-    "setupFilesAfterEnv": [
-      "./tests/setup.js"
-    ],
-    "testTimeout": 30000
   }
 }

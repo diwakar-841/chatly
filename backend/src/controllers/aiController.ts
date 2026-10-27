@@ -45,7 +45,7 @@ export const aiChat = async (
       history?: GeminiMessage[];
     };
 
-    if (!message?.trim()) {
+    if (typeof message !== "string" || !message.trim()) {
       return next(new AppError("Message is required", 400));
     }
     if (message.length > MAX_AI_MESSAGE_LENGTH) {
@@ -70,12 +70,19 @@ export const aiChat = async (
       { role: "user", parts: [{ text: message.trim() }] },
     ];
 
+    // Key goes in a header (not the URL) so it cannot end up in proxy/access logs.
+    // Timeout: without one a stalled upstream request would hang forever.
+    const model = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
         body: JSON.stringify({ contents }),
+        signal: AbortSignal.timeout(30_000),
       },
     );
 
@@ -99,6 +106,11 @@ export const aiChat = async (
       data.candidates?.[0]?.content?.parts?.[0]?.text || "No response from AI.";
     res.json({ reply });
   } catch (error) {
+    if ((error as Error)?.name === "TimeoutError") {
+      return next(
+        new AppError("The AI assistant took too long to respond. Please try again.", 504),
+      );
+    }
     next(error);
   }
 };

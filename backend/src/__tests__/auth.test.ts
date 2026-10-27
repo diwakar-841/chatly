@@ -4,25 +4,25 @@ import {
   expect,
   beforeAll,
   afterAll,
-  afterEach,
+  beforeEach,
   jest,
 } from "@jest/globals";
-import { MongoMemoryServer } from "mongodb-memory-server";
-import mongoose from "mongoose";
 import request from "supertest";
 import app from "../app.js";
+import User from "../models/User.js";
+import {
+  connectTestDb,
+  disconnectTestDb,
+  clearCollections,
+} from "./helpers/testUtils.js";
 
-// Mock email service
+// Never send real e-mails from tests.
 jest.mock("../services/emailService.js", () => {
   return {
     sendVerificationOtp: jest.fn(async () => {}),
     sendPasswordResetOtp: jest.fn(async () => {}),
   };
 });
-
-let mongo: MongoMemoryServer;
-let accessToken: string;
-let refreshToken: string;
 
 const USER = {
   username: "testauth",
@@ -31,31 +31,28 @@ const USER = {
   fullName: "Test Auth",
 };
 
-/**
- * Start an isolated in-memory database before any test in this suite runs.
- * This guarantees tests are hermetic and never touch a real MongoDB instance.
- */
 beforeAll(async () => {
-  mongo = await MongoMemoryServer.create();
-  await mongoose.connect(mongo.getUri());
+  await connectTestDb();
 });
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongo.stop();
+  await disconnectTestDb();
 });
 
-afterEach(async () => {
-  // Wipe collections between tests so each test starts from a clean state.
-  const collections = mongoose.connection.collections;
-  for (const col of Object.values(collections)) {
-    await col.deleteMany({});
-  }
+// Every test starts from an empty database, so each test registers what it needs.
+beforeEach(async () => {
+  await clearCollections();
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/auth/register
-// ─────────────────────────────────────────────────────────────────────────────
+const register = async () => {
+  const res = await request(app).post("/api/auth/register").send(USER);
+  return res.body as {
+    accessToken: string;
+    refreshToken: string;
+    user: { _id: string; email: string };
+  };
+};
+
 describe("POST /api/auth/register", () => {
   it("creates a new account and returns tokens + user", async () => {
     const res = await request(app).post("/api/auth/register").send(USER);
@@ -66,9 +63,29 @@ describe("POST /api/auth/register", () => {
     expect(res.body.user).not.toHaveProperty("password");
   });
 
+  it("ignores privileged fields sent by the client (mass assignment)", async () => {
+    const res = await request(app)
+      .post("/api/auth/register")
+      .send({ ...USER, isVerified: true, publicKey: "x".repeat(40) });
+    expect(res.status).toBe(201);
+    expect(res.body.user.isVerified).toBe(false);
+
+    const stored = await User.findOne({ email: USER.email });
+    expect(stored?.isVerified).toBe(false);
+    expect(stored?.publicKey).toBe("");
+  });
+
   it("rejects a duplicate email with 409", async () => {
-    await request(app).post("/api/auth/register").send(USER);
+    await register();
     const res = await request(app).post("/api/auth/register").send(USER);
+    expect(res.status).toBe(409);
+  });
+
+  it("rejects a duplicate username with 409", async () => {
+    await register();
+    const res = await request(app)
+      .post("/api/auth/register")
+      .send({ ...USER, email: "other@example.com" });
     expect(res.status).toBe(409);
   });
 
@@ -78,16 +95,18 @@ describe("POST /api/auth/register", () => {
       .send({ email: USER.email });
     expect(res.status).toBe(400);
   });
+
+  it("returns 400 for a weak password", async () => {
+    const res = await request(app)
+      .post("/api/auth/register")
+      .send({ ...USER, password: "weakpass" });
+    expect(res.status).toBe(400);
+  });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/auth/login
-// ─────────────────────────────────────────────────────────────────────────────
 describe("POST /api/auth/login", () => {
-  beforeAll(async () => {
-    const res = await request(app).post("/api/auth/register").send(USER);
-    accessToken = res.body.accessToken;
-    refreshToken = res.body.refreshToken;
+  beforeEach(async () => {
+    await register();
   });
 
   it("returns tokens and user on valid credentials", async () => {
@@ -114,21 +133,15 @@ describe("POST /api/auth/login", () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GET /api/auth/me
-// ─────────────────────────────────────────────────────────────────────────────
 describe("GET /api/auth/me", () => {
-  beforeAll(async () => {
-    const res = await request(app).post("/api/auth/register").send(USER);
-    accessToken = res.body.accessToken;
-  });
-
   it("returns the authenticated user", async () => {
+    const { accessToken } = await register();
     const res = await request(app)
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${accessToken}`);
     expect(res.status).toBe(200);
     expect(res.body.email).toBe(USER.email);
+    expect(res.body).not.toHaveProperty("password");
   });
 
   it("returns 401 when no token is provided", async () => {
@@ -142,30 +155,63 @@ describe("GET /api/auth/me", () => {
       .set("Authorization", "Bearer not-a-valid-token");
     expect(res.status).toBe(401);
   });
+
+  it("returns 401 (not 404) when the token belongs to a deleted user", async () => {
+    const { accessToken } = await register();
+    await User.deleteMany({});
+    const res = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${accessToken}`);
+    expect(res.status).toBe(401);
+  });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/auth/refresh-token
-// ─────────────────────────────────────────────────────────────────────────────
 describe("POST /api/auth/refresh-token", () => {
-  beforeAll(async () => {
-    const res = await request(app).post("/api/auth/register").send(USER);
-    refreshToken = res.body.refreshToken;
-  });
-
   it("issues a new token pair for a valid refresh token", async () => {
+    const { refreshToken } = await register();
     const res = await request(app)
       .post("/api/auth/refresh-token")
       .send({ refreshToken });
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty("accessToken");
     expect(res.body).toHaveProperty("refreshToken");
+    expect(res.body.refreshToken).not.toBe(refreshToken);
+  });
+
+  it("rotates refresh tokens: the old one stops working", async () => {
+    const { refreshToken } = await register();
+    await request(app).post("/api/auth/refresh-token").send({ refreshToken });
+    const reuse = await request(app)
+      .post("/api/auth/refresh-token")
+      .send({ refreshToken });
+    expect(reuse.status).toBe(401);
   });
 
   it("returns 401 for an invalid refresh token", async () => {
     const res = await request(app)
       .post("/api/auth/refresh-token")
       .send({ refreshToken: "bad-token" });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 400 when the refresh token is missing", async () => {
+    const res = await request(app).post("/api/auth/refresh-token").send({});
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /api/auth/logout", () => {
+  it("revokes the given refresh token", async () => {
+    const { accessToken, refreshToken } = await register();
+    const out = await request(app)
+      .post("/api/auth/logout")
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ refreshToken });
+    expect(out.status).toBe(200);
+
+    const res = await request(app)
+      .post("/api/auth/refresh-token")
+      .send({ refreshToken });
     expect(res.status).toBe(401);
   });
 });

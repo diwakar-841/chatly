@@ -116,8 +116,28 @@ export const createGroupValidation: ValidationChain[] = [
     .withMessage("Group name is required")
     .isLength({ max: 50 })
     .withMessage("Group name too long"),
+  body("description")
+    .optional()
+    .isString()
+    .isLength({ max: 500 })
+    .withMessage("Description too long"),
   body("members").optional().isArray().withMessage("members must be an array"),
   body("members.*").optional().isMongoId().withMessage("Invalid member id"),
+];
+
+export const updateGroupValidation: ValidationChain[] = [
+  body("name")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("Group name cannot be empty")
+    .isLength({ max: 50 })
+    .withMessage("Group name too long"),
+  body("description")
+    .optional()
+    .isString()
+    .isLength({ max: 500 })
+    .withMessage("Description too long"),
 ];
 
 export const updateProfileValidation: ValidationChain[] = [

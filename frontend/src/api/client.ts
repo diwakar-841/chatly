@@ -15,6 +15,20 @@ api.interceptors.request.use(config => {
 
 let refreshing: Promise<string | null> | null = null;
 
+// Endpoints where a 401 means "wrong credentials / dead refresh token" and
+// retrying with a refreshed access token makes no sense. Everything else under
+// /auth (e.g. /auth/me on app start, /auth/logout) MUST be refreshed: skipping
+// the whole /auth/ prefix logged users out whenever the 15-min access token
+// had expired, even though their refresh token was still valid.
+const NO_REFRESH_PATHS = [
+  "/auth/login",
+  "/auth/register",
+  "/auth/refresh-token",
+  "/auth/forgot-password",
+  "/auth/reset-password",
+  "/auth/verify-email",
+];
+
 async function doRefresh(): Promise<string | null> {
   const { refreshToken, setTokens, clear } = useAuth.getState();
   if (!refreshToken) {
@@ -36,7 +50,10 @@ api.interceptors.response.use(
   },
   async (error: AxiosError) => {
     const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
-    if (error.response?.status === 401 && !original._retry && !original.url?.includes("/auth/")) {
+    const skipRefresh = NO_REFRESH_PATHS.some(path => {
+      return original?.url?.includes(path);
+    });
+    if (error.response?.status === 401 && original && !original._retry && !skipRefresh) {
       original._retry = true;
       if (!refreshing) {
         refreshing = doRefresh();

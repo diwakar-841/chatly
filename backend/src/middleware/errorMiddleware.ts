@@ -58,7 +58,7 @@ export const errorHandler = (
   
   if (isOperational && err?.errors && Array.isArray(err.errors)) {
     const validationErrors = err.errors.map((e: any) => {
-      return { param: e.param, msg: e.msg };
+      return { param: e.path ?? e.param, msg: e.msg };
     });
     body.errors = validationErrors;
     if (validationErrors.length > 0) {

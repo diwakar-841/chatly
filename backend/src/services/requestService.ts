@@ -18,6 +18,11 @@ export const sendRequest = async (
     throw new AppError("Cannot send request to yourself", 400);
   }
 
+  const recipientExists = await User.exists({ _id: recipientId });
+  if (!recipientExists) {
+    throw new AppError("User not found", 404);
+  }
+
   const isBlocked = await BlockedUser.findOne({
     $or: [
       { blocker: senderId, blocked: recipientId },
@@ -35,7 +40,13 @@ export const sendRequest = async (
     ],
   });
   if (existing) {
-    throw new AppError("Request already exists", 409);
+    if (existing.status !== "rejected") {
+      throw new AppError("Request already exists", 409);
+    }
+    // getRequestStatus reports a rejected request as "none", so the UI offers
+    // "Add friend" again. Drop the old record (the sender/recipient pair is
+    // unique) instead of failing with 409 forever.
+    await existing.deleteOne();
   }
 
   const request = await Request.create({
@@ -87,6 +98,10 @@ export const respondToRequest = async (
     throw new AppError("Request already responded to", 409);
   }
 
+  // Capture the raw id now: populate() below replaces request.sender with a
+  // document, and String(document) is not a valid ObjectId.
+  const senderId = request.sender.toString();
+
   request.status = action === "accept" ? "accepted" : "rejected";
   await request.save();
   await request.populate([
@@ -96,17 +111,17 @@ export const respondToRequest = async (
 
   if (action === "accept") {
     const notification = await Notification.create({
-      recipient: request.sender,
+      recipient: senderId,
       sender: userId,
       type: "request_accepted",
       message: "Your friend request was accepted",
     });
     try {
       getIO()
-        .to(request.sender.toString())
+        .to(senderId)
         .emit("notification:new", notification);
       getIO()
-        .to(request.sender.toString())
+        .to(senderId)
         .emit("request:accepted", { requestId, by: userId });
     } catch (socketErr) {
       logger.warn(
@@ -115,12 +130,14 @@ export const respondToRequest = async (
     }
 
     try {
-      const chat = await getOrCreateDM(userId, request.sender.toString());
+      const chat = await getOrCreateDM(userId, senderId);
       const io = getIO();
       io.to(userId.toString()).emit("chat:new", chat);
-      io.to(request.sender.toString()).emit("chat:new", chat);
-    } catch {
-      
+      io.to(senderId).emit("chat:new", chat);
+    } catch (dmErr) {
+      logger.warn(
+        `[respondToRequest] DM creation/emit failed: ${(dmErr as Error).message}`,
+      );
     }
   }
 

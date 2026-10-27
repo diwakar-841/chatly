@@ -1,4 +1,3 @@
-import validator from "validator";
 import { Types } from "mongoose";
 import Message from "../models/Message.js";
 import Chat from "../models/Chat.js";
@@ -85,6 +84,19 @@ export const sendMessage = async ({
     }
   }
 
+  // A reply may only point at a message of the same chat. Without this check a
+  // member could "reply" to any message id and read it via the populated replyTo.
+  let replyToId: Types.ObjectId | null = null;
+  if (replyTo) {
+    const parent = await Message.findOne({ _id: replyTo, chat: chatId }).select(
+      "_id",
+    );
+    if (!parent) {
+      throw new AppError("The message you are replying to was not found", 400);
+    }
+    replyToId = parent._id;
+  }
+
   const expiresAt =
     chat.disappearingMessages && chat.disappearingMessages > 0
       ? new Date(Date.now() + chat.disappearingMessages * 1000)
@@ -96,7 +108,7 @@ export const sendMessage = async ({
     content: sanitizedContent,
     type: type ?? "text",
     mediaUrl: mediaUrl ?? "",
-    replyTo: replyTo ?? null,
+    replyTo: replyToId,
     readBy: [senderId],
     deliveredTo: [senderId],
     encryptedContent: isEncrypted ? encryptedContent : "",
@@ -104,17 +116,20 @@ export const sendMessage = async ({
     expiresAt,
   });
 
+  const unreadIncrements = Object.fromEntries(
+    chat.members
+      .filter((m) => {
+        return m.toString() !== senderId.toString();
+      })
+      .map((m) => {
+        return [`unreadCounts.${m.toString()}`, 1];
+      }),
+  );
   await Chat.findByIdAndUpdate(chatId, {
     $set: { lastMessage: message._id },
-    $inc: Object.fromEntries(
-      chat.members
-        .filter((m) => {
-          return m.toString() !== senderId.toString();
-        })
-        .map((m) => {
-          return [`unreadCounts.${m.toString()}`, 1];
-        }),
-    ),
+    ...(Object.keys(unreadIncrements).length > 0
+      ? { $inc: unreadIncrements }
+      : {}),
   });
 
   const populated = (await Message.findById(message._id)

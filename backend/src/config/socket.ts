@@ -105,18 +105,23 @@ export const initSocket = (server: HttpServer): Server => {
     }
   });
 
-  io.on("connection", async (socket) => {
+  io.on("connection", (socket) => {
     const s = socket as AuthenticatedSocket;
     const myId = s.user._id.toString();
     logger.info(`Socket connected: ${myId}`);
 
-    await User.findByIdAndUpdate(s.user._id, {
-      isOnline: true,
-      lastSeen: new Date(),
-    });
-    socket.join(myId);
+    // IMPORTANT: join the personal room and attach every event handler
+    // synchronously, before any `await`. Socket.IO does not buffer client
+    // events for handlers that are not registered yet, so awaiting DB calls
+    // first made early events (e.g. "chat:join") get silently dropped.
+    void socket.join(myId);
+    chatSocket(io, s);
+    callSocket(io, s);
+    notificationSocket(io, s);
+    userSocket(io, s);
 
-    try {
+    // Contacts (chat members) that this user is allowed to be seen by.
+    const getVisibleContactIds = async (): Promise<string[]> => {
       const chats = await Chat.find({ members: s.user._id }).select("members");
       const contactIds = new Set<string>();
       for (const chat of chats) {
@@ -127,61 +132,27 @@ export const initSocket = (server: HttpServer): Server => {
           }
         }
       }
-
       const excludedIds = await getExcludedFromPresence(myId);
-      const visibleContactIds = [...contactIds].filter((id) => {
+      return [...contactIds].filter((id) => {
         return !excludedIds.has(id);
       });
-
-      for (const contactId of visibleContactIds) {
-        socket.to(contactId).emit("user:online", { userId: myId });
-      }
-
-      const onlineContactIds: string[] = [];
-      for (const contactId of visibleContactIds) {
-        const sockets = await io.in(contactId).fetchSockets();
-        if (sockets.length > 0) {
-          onlineContactIds.push(contactId);
-        }
-      }
-      socket.emit("user:online_contacts", { userIds: onlineContactIds });
-    } catch (err) {
-      logger.warn(
-        `[presence] connect error for user ${myId}: ${(err as Error).message}`,
-      );
-    }
-
-    chatSocket(io, s);
-    callSocket(io, s);
-    notificationSocket(io, s);
-    userSocket(io, s);
+    };
 
     socket.on("disconnect", async () => {
       logger.info(`Socket disconnected: ${myId}`);
-      const lastSeen = new Date();
-      await User.findByIdAndUpdate(s.user._id, { isOnline: false, lastSeen });
-
       try {
-        const chats = await Chat.find({ members: s.user._id }).select(
-          "members",
-        );
-        const contactIds = new Set<string>();
-        for (const chat of chats) {
-          for (const memberId of chat.members) {
-            const id = memberId.toString();
-            if (id !== myId) {
-              contactIds.add(id);
-            }
-          }
+        // The same user may still be connected from another tab/device. Only
+        // go offline when the last socket is gone.
+        const remaining = await io.in(myId).fetchSockets();
+        if (remaining.length > 0) {
+          return;
         }
 
-        const excludedIds = await getExcludedFromPresence(myId);
-        const visibleContactIds = [...contactIds].filter((id) => {
-          return !excludedIds.has(id);
-        });
+        const lastSeen = new Date();
+        await User.findByIdAndUpdate(s.user._id, { isOnline: false, lastSeen });
 
-        for (const contactId of visibleContactIds) {
-          socket.to(contactId).emit("user:offline", { userId: myId, lastSeen });
+        for (const contactId of await getVisibleContactIds()) {
+          io.to(contactId).emit("user:offline", { userId: myId, lastSeen });
         }
       } catch (err) {
         logger.warn(
@@ -189,6 +160,35 @@ export const initSocket = (server: HttpServer): Server => {
         );
       }
     });
+
+    // Presence announcement. Errors are contained here: an uncaught rejection
+    // would otherwise reach the process-level handler and kill the server.
+    void (async () => {
+      try {
+        await User.findByIdAndUpdate(s.user._id, {
+          isOnline: true,
+          lastSeen: new Date(),
+        });
+
+        const visibleContactIds = await getVisibleContactIds();
+        for (const contactId of visibleContactIds) {
+          socket.to(contactId).emit("user:online", { userId: myId });
+        }
+
+        const onlineContactIds: string[] = [];
+        for (const contactId of visibleContactIds) {
+          const sockets = await io.in(contactId).fetchSockets();
+          if (sockets.length > 0) {
+            onlineContactIds.push(contactId);
+          }
+        }
+        socket.emit("user:online_contacts", { userIds: onlineContactIds });
+      } catch (err) {
+        logger.warn(
+          `[presence] connect error for user ${myId}: ${(err as Error).message}`,
+        );
+      }
+    })();
   });
 
   return io;

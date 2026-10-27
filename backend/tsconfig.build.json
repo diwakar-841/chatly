@@ -1,0 +1,6 @@
+{
+  // Production build: same as tsconfig.json but without the test files,
+  // so dist/ never contains compiled *.test.js files again.
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "dist", "src/__tests__"]
+}

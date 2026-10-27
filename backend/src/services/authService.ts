@@ -63,7 +63,14 @@ export const register = async (data: {
     throw new AppError("Username already taken", 409);
   }
 
-  const user = await User.create(data);
+  // Only whitelisted fields: spreading the raw request body here would let a
+  // client self-assign isVerified, publicKey, isOnline, etc.
+  const user = await User.create({
+    username: data.username,
+    email: data.email,
+    password: data.password,
+    fullName: data.fullName,
+  });
 
   const { otp, hash } = generateOtp();
   user.verifyEmailOtp = hash;
